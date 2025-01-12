@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
-import { ShepherdTourProvider } from "react-shepherd";
+import Shepherd from 'shepherd.js';
+import { ShepherdTour } from 'react-shepherd';
 
-const tourOptions = {
+const tourOptions: Shepherd.Tour.TourOptions = {
   defaultStepOptions: {
     classes: "shepherd-theme-custom",
     scrollTo: true,
@@ -18,10 +19,8 @@ interface ShepherdProviderProps {
 
 export function ShepherdProvider({ children }: ShepherdProviderProps) {
   return (
-    <ShepherdTourProvider tourOptions={tourOptions}>
+    <ShepherdTour steps={[]} tourOptions={tourOptions}>
       {children}
-    </ShepherdTourProvider>
+    </ShepherdTour>
   );
 }
-
-export { ShepherdTourContext };

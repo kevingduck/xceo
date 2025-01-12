@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useShepherdTour } from "react-shepherd";
+import { useShepherd } from "react-shepherd";
+import type Shepherd from 'shepherd.js';
 import "shepherd.js/dist/css/shepherd.css";
 
-const tourSteps = [
+const tourSteps: Shepherd.Step.StepOptions[] = [
   {
     id: "welcome",
     title: "Welcome to Business Management",
@@ -108,28 +109,36 @@ interface TourProps {
 
 export function BusinessTour({ isFirstVisit = true }: TourProps) {
   const [hasShownTour, setHasShownTour] = useState(false);
-  const tour = useShepherdTour();
+  const tour = useShepherd();
 
   useEffect(() => {
     if (!tour || !isFirstVisit || hasShownTour) return;
 
     try {
-      tour.addSteps(tourSteps);
+      // Register steps with the tour
+      tourSteps.forEach(step => {
+        if (tour && step.id) {
+          tour.addStep(step);
+        }
+      });
 
-      // Save tour completion status
-      tour.on("complete", () => {
+      // Handle tour completion
+      tour.on('complete', () => {
         setHasShownTour(true);
         localStorage.setItem("businessTourCompleted", "true");
       });
 
-      tour.on("cancel", () => {
+      // Handle tour cancellation
+      tour.on('cancel', () => {
         setHasShownTour(true);
         localStorage.setItem("businessTourCompleted", "true");
       });
 
-      // Wait for elements to be rendered before starting tour
+      // Start the tour after a short delay to ensure elements are mounted
       setTimeout(() => {
-        tour.start();
+        if (tour && !tour.isActive()) {
+          tour.start();
+        }
       }, 500);
     } catch (error) {
       console.error("Error initializing tour:", error);
