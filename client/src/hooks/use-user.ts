@@ -3,6 +3,8 @@ import type { InsertUser, SelectUser } from "@db/schema";
 
 type RequestResult = {
   ok: true;
+  message: string;
+  user?: { id: number; username: string };
 } | {
   ok: false;
   message: string;
@@ -21,18 +23,13 @@ async function handleRequest(
       credentials: "include",
     });
 
-    if (!response.ok) {
-      if (response.status >= 500) {
-        return { ok: false, message: response.statusText };
-      }
-
-      const message = await response.text();
-      return { ok: false, message };
-    }
-
-    return { ok: true };
+    const data = await response.json();
+    return data;
   } catch (e: any) {
-    return { ok: false, message: e.toString() };
+    return { 
+      ok: false, 
+      message: e.toString() 
+    };
   }
 }
 
@@ -46,11 +43,8 @@ async function fetchUser(): Promise<SelectUser | null> {
       return null;
     }
 
-    if (response.status >= 500) {
-      throw new Error(`${response.status}: ${response.statusText}`);
-    }
-
-    throw new Error(`${response.status}: ${await response.text()}`);
+    const data = await response.json();
+    throw new Error(data.message || response.statusText);
   }
 
   return response.json();
@@ -68,21 +62,30 @@ export function useUser() {
 
   const loginMutation = useMutation<RequestResult, Error, InsertUser>({
     mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (!data.ok) {
+        throw new Error(data.message);
+      }
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
   });
 
   const logoutMutation = useMutation<RequestResult, Error>({
     mutationFn: () => handleRequest('/api/logout', 'POST'),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (!data.ok) {
+        throw new Error(data.message);
+      }
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
   });
 
   const registerMutation = useMutation<RequestResult, Error, InsertUser>({
     mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (!data.ok) {
+        throw new Error(data.message);
+      }
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
   });
