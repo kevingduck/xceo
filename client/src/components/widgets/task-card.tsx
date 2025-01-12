@@ -49,8 +49,7 @@ export function TaskCard({ task }: TaskCardProps) {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -69,8 +68,7 @@ export function TaskCard({ task }: TaskCardProps) {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
+        throw new Error(await response.text());
       }
     },
     onSuccess: () => {

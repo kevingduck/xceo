@@ -10,6 +10,7 @@ import ConfigureCEO from "@/pages/configure-ceo";
 import Dashboard from "@/pages/dashboard";
 import Chat from "@/pages/chat";
 import Tasks from "@/pages/tasks";
+import Business from "@/pages/business";
 import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/chat" component={Chat} />
         <Route path="/tasks" component={Tasks} />
+        <Route path="/business" component={Business} />
         <Route path="/analytics" component={Analytics} />
         <Route component={NotFound} />
       </Switch>
