@@ -412,25 +412,34 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Chat API with improved conversation handling
+  // Chat API with improved conversation handling and error protection
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
-    // Get last 50 messages instead of all to maintain context
-    const messages = await db.query.chatMessages.findMany({
-      where: eq(chatMessages.userId, req.user.id),
-      orderBy: (messages, { desc }) => [desc(messages.createdAt)],
-      limit: 50
-    });
+    try {
+      // Get last 50 messages instead of all to maintain context
+      const messages = await db.query.chatMessages.findMany({
+        where: eq(chatMessages.userId, req.user.id),
+        orderBy: (messages, { desc }) => [desc(messages.createdAt)],
+        limit: 50
+      });
 
-    // Reverse to maintain chronological order
-    res.json(messages.reverse());
+      // Reverse to maintain chronological order
+      res.json(messages.reverse());
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      res.status(500).send("Failed to fetch chat messages");
+    }
   });
 
-  app.post("/api/chat", async (req, res) => {
+  app.post("/api/chat", async (req, res, next) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
+      if (!req.body.content) {
+        return res.status(400).send("Message content is required");
+      }
+
       // First save the user's message
       const [userMessage] = await db.insert(chatMessages)
         .values({
@@ -448,7 +457,7 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, req.user.id))
         .limit(1);
 
-      // Get last 10 messages for context
+      // Get last 10 messages for context, excluding the message we just inserted
       const recentMessages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
         orderBy: (messages, { desc }) => [desc(messages.createdAt)],
@@ -459,10 +468,13 @@ export function registerRoutes(app: Express): Server {
         name: user.businessName,
         description: user.businessDescription || '',
         objectives: user.businessObjectives as string[],
-        recentMessages: recentMessages.reverse().map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }))
+        recentMessages: recentMessages
+          .filter(msg => msg.id !== userMessage.id) // Exclude current message
+          .reverse()
+          .map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
       } : undefined;
 
       // Process with AI and get response
@@ -485,7 +497,7 @@ export function registerRoutes(app: Express): Server {
       res.json(savedResponse);
     } catch (error) {
       console.error("Chat error:", error);
-      res.status(500).send("Failed to process message");
+      next(error);
     }
   });
 

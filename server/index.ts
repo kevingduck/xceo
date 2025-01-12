@@ -1,10 +1,34 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { db } from "@db";
+import { users } from "@db/schema";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Verify database connection on startup
+async function verifyDatabaseConnection() {
+  try {
+    // Test database connection with a simple query
+    await db.select().from(users).limit(1);
+    log("Database connection verified successfully");
+  } catch (error) {
+    log("Failed to connect to database:", error);
+    throw error;
+  }
+}
+
+// Verify required environment variables
+function verifyEnvironment() {
+  const requiredEnvVars = ['DATABASE_URL', 'ANTHROPIC_API_KEY'];
+  const missing = requiredEnvVars.filter(env => !process.env[env]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -37,29 +61,42 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = registerRoutes(app);
+  try {
+    // Verify environment and database connection before starting
+    verifyEnvironment();
+    await verifyDatabaseConnection();
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const server = registerRoutes(app);
 
-    res.status(status).json({ message });
-    throw err;
-  });
+    // Global error handler with better logging
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+      // Log the full error for debugging
+      console.error("Application error:", {
+        status,
+        message,
+        stack: err.stack,
+        originalError: err
+      });
+
+      res.status(status).json({ message });
+    });
+
+    // Setup Vite for development
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      log(`Server started successfully on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
   }
-
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const PORT = 5000;
-  server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
-  });
 })();

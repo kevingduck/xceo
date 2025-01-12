@@ -25,7 +25,7 @@ const VALID_SECTIONS = [
 const availableTools: ToolFunction[] = [
   {
     name: "update_business_info",
-    description: "Update a section of business information",
+    description: "Update a section of business information when there are significant, concrete insights or decisions that need to be recorded",
     parameters: {
       section: "string", // Must be one of VALID_SECTIONS
       content: "string", // the new content
@@ -34,7 +34,7 @@ const availableTools: ToolFunction[] = [
   },
   {
     name: "log_conversation_summary",
-    description: "Log a summary of the conversation as business context",
+    description: "Log a summary of the conversation as business context when a natural conclusion is reached",
     parameters: {
       summary: "string",
       keyInsights: "string[]",
@@ -111,6 +111,13 @@ async function logConversationSummary(userId: number, params: any): Promise<void
       )
     );
 
+  const summaryContent = JSON.stringify({
+    summary: params.summary,
+    keyInsights: params.keyInsights,
+    actionItems: params.actionItems,
+    timestamp: new Date().toISOString()
+  });
+
   if (existingInfo) {
     // Save to history first
     await db.insert(businessInfoHistory).values({
@@ -126,12 +133,7 @@ async function logConversationSummary(userId: number, params: any): Promise<void
     await db
       .update(businessInfo)
       .set({
-        content: JSON.stringify({
-          summary: params.summary,
-          keyInsights: params.keyInsights,
-          actionItems: params.actionItems,
-          timestamp: new Date().toISOString()
-        }),
+        content: summaryContent,
         updatedAt: new Date()
       })
       .where(eq(businessInfo.id, existingInfo.id));
@@ -143,20 +145,10 @@ async function logConversationSummary(userId: number, params: any): Promise<void
         userId,
         section: 'conversationSummaries',
         title: 'Conversation Summaries',
-        content: JSON.stringify({
-          summary: params.summary,
-          keyInsights: params.keyInsights,
-          actionItems: params.actionItems,
-          timestamp: new Date().toISOString()
-        }),
+        content: summaryContent,
         metadata: {}
       });
   }
-
-  // Clear previous messages
-  await db
-    .delete(chatMessages)
-    .where(eq(chatMessages.userId, userId));
 }
 
 export async function processAIMessage(userId: number, userMessage: string, businessContext?: {
@@ -165,19 +157,40 @@ export async function processAIMessage(userId: number, userMessage: string, busi
   objectives: string[];
   recentMessages?: Array<{ role: string; content: string; }>;
 }) {
-  let systemPrompt = businessContext ? 
-    `You are an AI CEO assistant for ${businessContext.name}. Business Description: ${businessContext.description}. Key Objectives: ${businessContext.objectives.join(", ")}.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+  }
 
-    You have access to the following valid business sections that you can update:
+  let systemPrompt = businessContext ? 
+    `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
+
+    Business Context:
+    Description: ${businessContext.description}
+    Key Objectives: ${businessContext.objectives.join(", ")}
+
+    Your role is to be a thoughtful, strategic advisor who:
+    1. Engages in natural, flowing conversation
+    2. Asks clarifying questions to better understand the situation
+    3. Only takes action (like updating business info) when there are concrete, valuable insights
+    4. Thinks critically about business implications before making suggestions
+    5. Maintains context across the conversation
+    6. Treats the user as a peer, not just following commands
+
+    Communication Guidelines:
+    - Be conversational and natural in your responses
+    - Ask thoughtful questions when you need more context
+    - Don't force updates or actions unless there's clear value
+    - Think through implications before suggesting changes
+    - Sometimes just listen and discuss without taking action
+    - Stay focused on the current topic until it reaches a natural conclusion
+
+    Available Business Sections (only update when truly necessary):
     ${VALID_SECTIONS.join(", ")}
 
-    When updating business information, ONLY use these exact section names.
-    For example, use "Market Intelligence" not "market" or "marketing".
-
-    You have access to the following tools:
+    You have access to these tools (use sparingly and only when appropriate):
     ${JSON.stringify(availableTools, null, 2)}
 
-    When you want to use a tool, format your response like this:
+    Tool Usage Format:
     <tool>tool_name</tool>
     <parameters>
     {
@@ -186,73 +199,85 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     }
     </parameters>
 
-    Guidelines:
-    1. Only update business sections when there is specific, actionable information
-    2. When updating a section:
-       - Be specific and detailed in the content
-       - Clearly explain why you're making the update
-       - Use the exact section names provided
-    3. Don't create tasks automatically - only when explicitly asked
-    4. If you're asked to summarize the conversation:
-       - Provide a concise summary focusing on key points
-       - Extract specific insights and action items
-       - Use the log_conversation_summary tool
-
     Previous conversation context:
     ${businessContext.recentMessages ? businessContext.recentMessages.map(msg => 
       `${msg.role}: ${msg.content}`
     ).join("\n") : "No previous context"}` :
-    'You are an AI CEO assistant. Please ask the user to configure their business details first.';
+    'You are an AI CEO assistant. Please ask the user to configure their business details first. Be friendly and explain why this configuration would be helpful for our collaboration.';
 
-  const response = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-    max_tokens: 1024,
-  });
+  try {
+    console.log("Processing AI message with context:", { 
+      userId,
+      messageLength: userMessage.length,
+      hasBusinessContext: !!businessContext,
+      numPreviousMessages: businessContext?.recentMessages?.length || 0
+    });
 
-  // Ensure we have a text response
-  const messageContent = response.content[0];
-  if (messageContent.type !== 'text') {
-    return "I apologize, but I can only process text responses at the moment.";
-  }
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      max_tokens: 4096, // Increased token limit for longer conversations
+      temperature: 0.7, // Slightly increased temperature for more natural conversation
+    });
 
-  let finalResponse = messageContent.text;
+    // Ensure we have a text response
+    const messageContent = response.content[0];
+    if (messageContent.type !== 'text') {
+      return "I apologize, but I can only process text responses at the moment.";
+    }
 
-  // Check for tool invocations
-  const matches = finalResponse.match(/<tool>([^<]+)<\/tool>\s*<parameters>([^<]+)<\/parameters>/gm);
+    let finalResponse = messageContent.text;
 
-  if (matches) {
-    for (const match of matches) {
-      const toolMatch = match.match(/<tool>([^<]+)<\/tool>/);
-      const paramsMatch = match.match(/<parameters>([^<]+)<\/parameters>/);
+    // Check for tool invocations
+    const matches = finalResponse.match(/<tool>([^<]+)<\/tool>\s*<parameters>([^<]+)<\/parameters>/gm);
 
-      if (!toolMatch || !paramsMatch) continue;
+    if (matches) {
+      console.log("Found tool invocations:", matches.length);
+      for (const match of matches) {
+        const toolMatch = match.match(/<tool>([^<]+)<\/tool>/);
+        const paramsMatch = match.match(/<parameters>([^<]+)<\/parameters>/);
 
-      const toolName = toolMatch[1];
-      let parameters;
-      try {
-        parameters = JSON.parse(paramsMatch[1]);
-      } catch (e) {
-        console.error("Failed to parse tool parameters:", e);
-        continue;
-      }
+        if (!toolMatch || !paramsMatch) continue;
 
-      if (toolName === "update_business_info") {
-        const info = await updateBusinessInfo(userId, parameters);
-        finalResponse = finalResponse.replace(
-          match, 
-          `✓ Updated ${info.section} information: ${parameters.reason}`
-        );
-      } else if (toolName === "log_conversation_summary") {
-        await logConversationSummary(userId, parameters);
-        finalResponse = finalResponse.replace(
-          match,
-          `✓ Conversation summarized and logged. Starting fresh conversation.`
-        );
+        const toolName = toolMatch[1];
+        let parameters;
+        try {
+          parameters = JSON.parse(paramsMatch[1]);
+        } catch (e) {
+          console.error("Failed to parse tool parameters:", e);
+          continue;
+        }
+
+        console.log("Executing tool:", { toolName, parameters });
+
+        try {
+          if (toolName === "update_business_info") {
+            const info = await updateBusinessInfo(userId, parameters);
+            finalResponse = finalResponse.replace(
+              match, 
+              `✓ Updated ${info.section} information: ${parameters.reason}`
+            );
+          } else if (toolName === "log_conversation_summary") {
+            await logConversationSummary(userId, parameters);
+            finalResponse = finalResponse.replace(
+              match,
+              `✓ Conversation summarized and logged. Starting fresh conversation.`
+            );
+          }
+        } catch (error) {
+          console.error(`Error executing tool ${toolName}:`, error);
+          finalResponse = finalResponse.replace(
+            match,
+            `⚠ Failed to execute ${toolName}: ${error.message}`
+          );
+        }
       }
     }
-  }
 
-  return finalResponse;
+    return finalResponse;
+  } catch (error: any) {
+    console.error("Error processing AI message:", error);
+    throw error;
+  }
 }
