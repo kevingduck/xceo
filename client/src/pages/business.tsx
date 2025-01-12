@@ -15,9 +15,10 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, History, Edit2 } from "lucide-react";
+import { Loader2, History, Edit2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -64,13 +65,11 @@ const sections: Section[] = [
 
 // Bidirectional mapping between UI section IDs and database section names
 const sectionMappings: Record<string, string> = {
-  // UI ID to Database Name
   'overview': 'Business Overview',
   'finance': 'Financial Overview', 
   'market': 'Market Intelligence',
   'humanCapital': 'Human Capital',
   'operations': 'Operations',
-  // Database Name to UI ID
   'Business Overview': 'overview',
   'Financial Overview': 'finance',
   'Market Intelligence': 'market',
@@ -78,29 +77,29 @@ const sectionMappings: Record<string, string> = {
   'Operations': 'operations'
 };
 
-const getSectionFromTitle = (title: string): string => {
-  console.log('Getting section for title:', title);
+interface BusinessField {
+  name: string;
+  type: 'text' | 'number' | 'currency' | 'percentage' | 'date' | 'list';
+  description: string;
+}
 
-  // Direct lookup in mappings
+interface BusinessTemplate {
+  name: string;
+  template: string;
+  fields: BusinessField[];
+}
+
+const getSectionFromTitle = (title: string): string => {
   if (title in sectionMappings) {
-    const mapped = sectionMappings[title];
-    console.log('Found direct mapping:', mapped);
-    return mapped;
+    return sectionMappings[title];
   }
 
-  // Fallback to finding the UI section ID
   const section = sections.find(s => 
     s.title === title || 
     s.id === title.toLowerCase().replace(/\s+/g, '')
   );
 
-  if (section) {
-    console.log('Found section by ID/title:', section.id);
-    return section.id;
-  }
-
-  console.log('No mapping found, defaulting to overview');
-  return 'overview';
+  return section?.id || 'overview';
 };
 
 const getTitleFromSection = (sectionId: string): string => {
@@ -108,18 +107,107 @@ const getTitleFromSection = (sectionId: string): string => {
   return section?.title || sectionId;
 };
 
+// Helper function to format field values based on type
+const formatFieldValue = (value: any, type: string) => {
+  if (value === null || value === undefined) return '-';
+
+  switch (type) {
+    case 'currency':
+      return new Intl.NumberFormat('en-US', { 
+        style: 'currency', 
+        currency: 'USD' 
+      }).format(Number(value));
+    case 'percentage':
+      return `${value}%`;
+    case 'date':
+      return new Date(value).toLocaleDateString();
+    case 'list':
+      return Array.isArray(value) ? value.join(', ') : value;
+    default:
+      return value.toString();
+  }
+};
+
+// Field Editor Component
+function FieldEditor({ 
+  field, 
+  value, 
+  onChange 
+}: { 
+  field: BusinessField; 
+  value: any; 
+  onChange: (value: any) => void;
+}) {
+  switch (field.type) {
+    case 'text':
+      return (
+        <Input
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.description}
+        />
+      );
+    case 'number':
+    case 'currency':
+      return (
+        <Input
+          type="number"
+          value={value || ''}
+          onChange={(e) => onChange(Number(e.target.value))}
+          placeholder={field.description}
+          step={field.type === 'currency' ? '0.01' : '1'}
+        />
+      );
+    case 'percentage':
+      return (
+        <Input
+          type="number"
+          value={value || ''}
+          onChange={(e) => onChange(Number(e.target.value))}
+          placeholder={field.description}
+          min="0"
+          max="100"
+          step="0.1"
+        />
+      );
+    case 'date':
+      return (
+        <Input
+          type="date"
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    case 'list':
+      return (
+        <Textarea
+          value={Array.isArray(value) ? value.join('\n') : value || ''}
+          onChange={(e) => onChange(e.target.value.split('\n').filter(Boolean))}
+          placeholder={field.description}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
 export default function BusinessPage() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
     queryKey: ["/api/business-info"]
+  });
+
+  const { data: templates = [], isLoading: isTemplateLoading } = useQuery<BusinessTemplate[]>({
+    queryKey: ["/api/business-info/templates"]
   });
 
   const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
@@ -137,8 +225,7 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -160,9 +247,54 @@ export default function BusinessPage() {
     }
   });
 
+  const updateBusinessFields = useMutation({
+    mutationFn: async ({ 
+      id, 
+      fields 
+    }: { 
+      id: number; 
+      fields: Record<string, any>; 
+    }) => {
+      const response = await fetch(`/api/business-info/${id}/fields`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      setEditingField(null);
+      toast({
+        title: "Field updated",
+        description: "The field has been successfully updated"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
   const createBusinessInfo = useMutation({
-    mutationFn: async ({ section, title, content }: { section: string; title: string; content: string }) => {
-      console.log('Creating business info with section:', section);
+    mutationFn: async ({ 
+      section, 
+      title, 
+      content 
+    }: { 
+      section: string; 
+      title: string; 
+      content: string; 
+    }) => {
       const response = await fetch("/api/business-info", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,8 +303,7 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -200,11 +331,9 @@ export default function BusinessPage() {
 
     const info = businessInfo.find(info => {
       const infoSection = getSectionFromTitle(info.section);
-      console.log(`Looking for section match: ${info.section} -> ${infoSection} comparing with ${activeSection}`);
       return infoSection === activeSection;
     });
 
-    console.log("Selected info for editing:", info);
     setSelectedInfo(info || null);
     setEditedContent(info?.content || "");
     setIsEditing(true);
@@ -214,12 +343,6 @@ export default function BusinessPage() {
     const currentSection = sections.find(s => s.id === activeSection);
     if (!currentSection) return;
 
-    console.log('Saving section:', {
-      activeSection,
-      mappedSection: sectionMappings[activeSection],
-      currentSection
-    });
-
     if (selectedInfo) {
       updateBusinessInfo.mutate({
         id: selectedInfo.id,
@@ -227,25 +350,37 @@ export default function BusinessPage() {
       });
     } else {
       createBusinessInfo.mutate({
-        section: currentSection.title, // Use the display title as stored in the database
+        section: currentSection.title,
         title: currentSection.title,
         content: editedContent
       });
     }
   };
 
+  const handleFieldUpdate = (infoId: number, fieldName: string, value: any) => {
+    updateBusinessFields.mutate({
+      id: infoId,
+      fields: {
+        [fieldName]: {
+          value,
+          type: templates
+            .find(t => t.name === sectionMappings[activeSection])
+            ?.fields.find(f => f.name === fieldName)?.type || 'text'
+        }
+      }
+    });
+  };
+
   // Find business info for current section
   const currentSectionData = businessInfo.find(info => {
     const infoSection = getSectionFromTitle(info.section);
-    console.log(`Checking section: ${info.section} (${infoSection}) against active ${activeSection}`);
     return infoSection === activeSection;
   });
 
-  console.log("Active section:", activeSection);
-  console.log("Business info data:", businessInfo);
-  console.log("Current section data:", currentSectionData);
+  // Get template for current section
+  const currentTemplate = templates.find(t => t.name === sectionMappings[activeSection]);
 
-  if (isBusinessLoading) {
+  if (isBusinessLoading || isTemplateLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -272,7 +407,7 @@ export default function BusinessPage() {
         </TabsList>
 
         {sections.map((section) => (
-          <TabsContent key={section.id} value={section.id} className="mt-0">
+          <TabsContent key={section.id} value={section.id} className="mt-0 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>{section.title}</CardTitle>
@@ -300,6 +435,7 @@ export default function BusinessPage() {
                     {currentSectionData ? "Edit" : "Add Information"}
                   </Button>
                 </div>
+
                 <div className="prose prose-sm max-w-none whitespace-pre-wrap">
                   {currentSectionData?.content || (
                     <p className="text-muted-foreground italic">
@@ -307,6 +443,81 @@ export default function BusinessPage() {
                     </p>
                   )}
                 </div>
+
+                {/* Fields Section */}
+                {currentTemplate && (
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Fields</CardTitle>
+                      <CardDescription>
+                        Track and update specific metrics for this section
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-4">
+                        {currentTemplate.fields.map((field) => (
+                          <div key={field.name} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <label className="text-sm font-medium">
+                                  {field.name.split('_').map(word => 
+                                    word.charAt(0).toUpperCase() + word.slice(1)
+                                  ).join(' ')}
+                                </label>
+                                <p className="text-xs text-muted-foreground">
+                                  {field.description}
+                                </p>
+                              </div>
+                              {currentSectionData && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingField(field.name)}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+
+                            {editingField === field.name ? (
+                              <div className="flex items-center gap-2">
+                                <FieldEditor
+                                  field={field}
+                                  value={currentSectionData?.fields?.[field.name]?.value}
+                                  onChange={(value) => 
+                                    handleFieldUpdate(currentSectionData.id, field.name, value)
+                                  }
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingField(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="bg-muted rounded-md p-2">
+                                {currentSectionData?.fields?.[field.name] ? (
+                                  <p className="text-sm">
+                                    {formatFieldValue(
+                                      currentSectionData.fields[field.name].value,
+                                      field.type
+                                    )}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground italic">
+                                    Not set
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
