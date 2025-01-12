@@ -14,21 +14,20 @@ type ToolFunction = {
   parameters: Record<string, any>;
 };
 
+const VALID_SECTIONS = [
+  "Business Overview",
+  "Financial Overview",
+  "Market Intelligence",
+  "Human Capital",
+  "Operations"
+] as const;
+
 const availableTools: ToolFunction[] = [
-  {
-    name: "create_task",
-    description: "Create a new task in the system",
-    parameters: {
-      title: "string",
-      description: "string",
-      status: "string"
-    }
-  },
   {
     name: "update_business_info",
     description: "Update a section of business information",
     parameters: {
-      section: "string", // e.g., 'finance', 'market', 'humanCapital'
+      section: "string", // Must be one of VALID_SECTIONS
       content: "string", // the new content
       reason: "string" // why this update is being made
     }
@@ -44,21 +43,12 @@ const availableTools: ToolFunction[] = [
   }
 ];
 
-async function createTask(userId: number, params: any): Promise<Task> {
-  const [task] = await db
-    .insert(tasks)
-    .values({
-      userId,
-      title: params.title,
-      description: params.description,
-      status: params.status || "todo"
-    })
-    .returning();
-
-  return task;
-}
-
 async function updateBusinessInfo(userId: number, params: any): Promise<BusinessInfo> {
+  const section = params.section as typeof VALID_SECTIONS[number];
+  if (!VALID_SECTIONS.includes(section)) {
+    throw new Error(`Invalid section: ${section}. Must be one of: ${VALID_SECTIONS.join(', ')}`);
+  }
+
   // Find existing info for this section
   const [existingInfo] = await db
     .select()
@@ -66,7 +56,7 @@ async function updateBusinessInfo(userId: number, params: any): Promise<Business
     .where(
       and(
         eq(businessInfo.userId, userId),
-        eq(businessInfo.section, params.section)
+        eq(businessInfo.section, section)
       )
     );
 
@@ -98,8 +88,8 @@ async function updateBusinessInfo(userId: number, params: any): Promise<Business
       .insert(businessInfo)
       .values({
         userId,
-        section: params.section,
-        title: params.section.charAt(0).toUpperCase() + params.section.slice(1),
+        section,
+        title: section,
         content: params.content,
         metadata: {}
       })
@@ -173,11 +163,18 @@ export async function processAIMessage(userId: number, userMessage: string, busi
   name: string;
   description: string;
   objectives: string[];
+  recentMessages?: Array<{ role: string; content: string; }>;
 }) {
   let systemPrompt = businessContext ? 
     `You are an AI CEO assistant for ${businessContext.name}. Business Description: ${businessContext.description}. Key Objectives: ${businessContext.objectives.join(", ")}.
 
-    You have access to the following tools that you can use to help manage the business:
+    You have access to the following valid business sections that you can update:
+    ${VALID_SECTIONS.join(", ")}
+
+    When updating business information, ONLY use these exact section names.
+    For example, use "Market Intelligence" not "market" or "marketing".
+
+    You have access to the following tools:
     ${JSON.stringify(availableTools, null, 2)}
 
     When you want to use a tool, format your response like this:
@@ -189,16 +186,22 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     }
     </parameters>
 
-    You can use multiple tools in one response. Always explain what you're doing before using tools.
-    When you detect that important business information has been discussed:
-    1. Use update_business_info to record it in the appropriate section
-    2. Be specific and detailed in the content
-    3. Clearly explain why you're making the update
+    Guidelines:
+    1. Only update business sections when there is specific, actionable information
+    2. When updating a section:
+       - Be specific and detailed in the content
+       - Clearly explain why you're making the update
+       - Use the exact section names provided
+    3. Don't create tasks automatically - only when explicitly asked
+    4. If you're asked to summarize the conversation:
+       - Provide a concise summary focusing on key points
+       - Extract specific insights and action items
+       - Use the log_conversation_summary tool
 
-    If you're asked to summarize the conversation:
-    1. Provide a concise summary focusing on key points
-    2. Extract specific insights and action items
-    3. Use the log_conversation_summary tool to record this information` :
+    Previous conversation context:
+    ${businessContext.recentMessages ? businessContext.recentMessages.map(msg => 
+      `${msg.role}: ${msg.content}`
+    ).join("\n") : "No previous context"}` :
     'You are an AI CEO assistant. Please ask the user to configure their business details first.';
 
   const response = await anthropic.messages.create({
@@ -235,10 +238,7 @@ export async function processAIMessage(userId: number, userMessage: string, busi
         continue;
       }
 
-      if (toolName === "create_task") {
-        const task = await createTask(userId, parameters);
-        finalResponse = finalResponse.replace(match, `✓ Created task: ${task.title}`);
-      } else if (toolName === "update_business_info") {
+      if (toolName === "update_business_info") {
         const info = await updateBusinessInfo(userId, parameters);
         finalResponse = finalResponse.replace(
           match, 

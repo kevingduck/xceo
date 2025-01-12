@@ -22,7 +22,7 @@ const configureCEOSchema = z.object({
 
 const VALID_SECTIONS = [
   "Business Overview",
-  "Financial Overview", 
+  "Financial Overview",
   "Market Intelligence",
   "Human Capital",
   "Operations"
@@ -373,15 +373,58 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Chat API
+  app.delete("/api/business-info/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const infoId = parseInt(req.params.id);
+      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
+
+      // Verify business info exists and belongs to user
+      const [existingInfo] = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.id, infoId))
+        .limit(1);
+
+      if (!existingInfo) {
+        return res.status(404).send("Business info not found");
+      }
+
+      if (existingInfo.userId !== req.user.id) {
+        return res.status(403).send("Unauthorized");
+      }
+
+      // First delete history entries
+      await db
+        .delete(businessInfoHistory)
+        .where(eq(businessInfoHistory.businessInfoId, infoId));
+
+      // Then delete the main entry
+      await db
+        .delete(businessInfo)
+        .where(eq(businessInfo.id, infoId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting business info:", error);
+      res.status(500).send("Failed to delete business information");
+    }
+  });
+
+  // Chat API with improved conversation handling
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
+    // Get last 50 messages instead of all to maintain context
     const messages = await db.query.chatMessages.findMany({
       where: eq(chatMessages.userId, req.user.id),
-      orderBy: (messages, { asc }) => [asc(messages.createdAt)]
+      orderBy: (messages, { desc }) => [desc(messages.createdAt)],
+      limit: 50
     });
-    res.json(messages);
+
+    // Reverse to maintain chronological order
+    res.json(messages.reverse());
   });
 
   app.post("/api/chat", async (req, res) => {
@@ -393,7 +436,8 @@ export function registerRoutes(app: Express): Server {
         .values({
           content: req.body.content,
           role: "user",
-          userId: req.user.id
+          userId: req.user.id,
+          metadata: { timestamp: new Date().toISOString() }
         })
         .returning();
 
@@ -404,10 +448,21 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, req.user.id))
         .limit(1);
 
+      // Get last 10 messages for context
+      const recentMessages = await db.query.chatMessages.findMany({
+        where: eq(chatMessages.userId, req.user.id),
+        orderBy: (messages, { desc }) => [desc(messages.createdAt)],
+        limit: 10
+      });
+
       const businessContext = user.businessName ? {
         name: user.businessName,
-        description: user.businessDescription || '', // Ensure it's always a string
-        objectives: user.businessObjectives as string[]
+        description: user.businessDescription || '',
+        objectives: user.businessObjectives as string[],
+        recentMessages: recentMessages.reverse().map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
       } : undefined;
 
       // Process with AI and get response
@@ -422,7 +477,8 @@ export function registerRoutes(app: Express): Server {
         .values({
           content: aiResponse,
           role: "assistant",
-          userId: req.user.id
+          userId: req.user.id,
+          metadata: { timestamp: new Date().toISOString() }
         })
         .returning();
 
