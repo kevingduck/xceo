@@ -34,9 +34,10 @@ export const selectUserSchema = createSelectSchema(users);
 export const businessInfo = pgTable("business_info", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
-  section: text("section").notNull(), // e.g., "finance", "market", "humanCapital"
+  section: text("section").notNull(), // e.g., "Business Overview", "Financial Overview"
   title: text("title").notNull(),
   content: text("content").notNull(),
+  fields: jsonb("fields").$type<Record<string, { value: string | number | string[]; type: string }>>(),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -47,6 +48,7 @@ export const businessInfoHistory = pgTable("business_info_history", {
   businessInfoId: integer("business_info_id").references(() => businessInfo.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   content: text("content").notNull(),
+  fields: jsonb("fields").$type<Record<string, { value: string | number | string[]; type: string }>>(),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   updatedBy: text("updated_by").notNull(), // "user" or "ai"
