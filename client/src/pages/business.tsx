@@ -18,14 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, History, Edit2, Plus } from "lucide-react";
+import { Loader2, History, Edit2, Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
 
@@ -63,7 +62,6 @@ const sections: Section[] = [
   }
 ];
 
-// Bidirectional mapping between UI section IDs and database section names
 const sectionMappings: Record<string, string> = {
   'overview': 'Business Overview',
   'finance': 'Financial Overview', 
@@ -102,12 +100,6 @@ const getSectionFromTitle = (title: string): string => {
   return section?.id || 'overview';
 };
 
-const getTitleFromSection = (sectionId: string): string => {
-  const section = sections.find(s => s.id === sectionId);
-  return section?.title || sectionId;
-};
-
-// Helper function to format field values based on type
 const formatFieldValue = (value: any, type: string) => {
   if (value === null || value === undefined) return '-';
 
@@ -128,73 +120,97 @@ const formatFieldValue = (value: any, type: string) => {
   }
 };
 
-// Field Editor Component
 function FieldEditor({ 
   field, 
   value, 
-  onChange 
+  onSave,
+  onCancel
 }: { 
   field: BusinessField; 
   value: any; 
-  onChange: (value: any) => void;
+  onSave: (value: any) => void;
+  onCancel: () => void;
 }) {
-  switch (field.type) {
-    case 'text':
-      return (
-        <Input
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.description}
-        />
-      );
-    case 'number':
-    case 'currency':
-      return (
-        <Input
-          type="number"
-          value={value || ''}
-          onChange={(e) => onChange(Number(e.target.value))}
-          placeholder={field.description}
-          step={field.type === 'currency' ? '0.01' : '1'}
-        />
-      );
-    case 'percentage':
-      return (
-        <Input
-          type="number"
-          value={value || ''}
-          onChange={(e) => onChange(Number(e.target.value))}
-          placeholder={field.description}
-          min="0"
-          max="100"
-          step="0.1"
-        />
-      );
-    case 'date':
-      return (
-        <Input
-          type="date"
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-    case 'list':
-      return (
-        <Textarea
-          value={Array.isArray(value) ? value.join('\n') : value || ''}
-          onChange={(e) => onChange(e.target.value.split('\n').filter(Boolean))}
-          placeholder={field.description}
-        />
-      );
-    default:
-      return null;
-  }
+  const [currentValue, setCurrentValue] = useState(value);
+
+  const handleSave = () => {
+    onSave(currentValue);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        {(() => {
+          switch (field.type) {
+            case 'text':
+              return (
+                <Input
+                  value={currentValue || ''}
+                  onChange={(e) => setCurrentValue(e.target.value)}
+                  placeholder={field.description}
+                  className="flex-1"
+                />
+              );
+            case 'number':
+            case 'currency':
+              return (
+                <Input
+                  type="number"
+                  value={currentValue || ''}
+                  onChange={(e) => setCurrentValue(Number(e.target.value))}
+                  placeholder={field.description}
+                  step={field.type === 'currency' ? '0.01' : '1'}
+                  className="flex-1"
+                />
+              );
+            case 'percentage':
+              return (
+                <Input
+                  type="number"
+                  value={currentValue || ''}
+                  onChange={(e) => setCurrentValue(Number(e.target.value))}
+                  placeholder={field.description}
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  className="flex-1"
+                />
+              );
+            case 'date':
+              return (
+                <Input
+                  type="date"
+                  value={currentValue || ''}
+                  onChange={(e) => setCurrentValue(e.target.value)}
+                  className="flex-1"
+                />
+              );
+            case 'list':
+              return (
+                <Textarea
+                  value={Array.isArray(currentValue) ? currentValue.join('\n') : currentValue || ''}
+                  onChange={(e) => setCurrentValue(e.target.value.split('\n').filter(Boolean))}
+                  placeholder={field.description}
+                  className="flex-1"
+                />
+              );
+            default:
+              return null;
+          }
+        })()}
+        <Button size="sm" variant="ghost" onClick={handleSave}>
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export default function BusinessPage() {
   const [activeSection, setActiveSection] = useState("overview");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState("");
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -213,38 +229,6 @@ export default function BusinessPage() {
   const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
     queryKey: ["/api/business-info/history", selectedInfo?.id],
     enabled: showHistory && !!selectedInfo
-  });
-
-  const updateBusinessInfo = useMutation({
-    mutationFn: async ({ id, content }: { id: number; content: string }) => {
-      const response = await fetch(`/api/business-info/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-        credentials: "include"
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-      setIsEditing(false);
-      toast({
-        title: "Changes saved",
-        description: "Your business information has been updated"
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
   });
 
   const updateBusinessFields = useMutation({
@@ -285,87 +269,13 @@ export default function BusinessPage() {
     }
   });
 
-  const createBusinessInfo = useMutation({
-    mutationFn: async ({ 
-      section, 
-      title, 
-      content 
-    }: { 
-      section: string; 
-      title: string; 
-      content: string; 
-    }) => {
-      const response = await fetch("/api/business-info", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section, title, content }),
-        credentials: "include"
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-      setIsEditing(false);
-      toast({
-        title: "Created",
-        description: "New business information section has been created"
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleEdit = () => {
-    const currentSection = sections.find(s => s.id === activeSection);
-    if (!currentSection) return;
-
-    const info = businessInfo.find(info => {
-      const infoSection = getSectionFromTitle(info.section);
-      return infoSection === activeSection;
-    });
-
-    setSelectedInfo(info || null);
-    setEditedContent(info?.content || "");
-    setIsEditing(true);
-  };
-
-  const handleSave = () => {
-    const currentSection = sections.find(s => s.id === activeSection);
-    if (!currentSection) return;
-
-    if (selectedInfo) {
-      updateBusinessInfo.mutate({
-        id: selectedInfo.id,
-        content: editedContent
-      });
-    } else {
-      createBusinessInfo.mutate({
-        section: currentSection.title,
-        title: currentSection.title,
-        content: editedContent
-      });
-    }
-  };
-
-  const handleFieldUpdate = (infoId: number, fieldName: string, value: any) => {
+  const handleFieldUpdate = (infoId: number, fieldName: string, value: any, type: string) => {
     updateBusinessFields.mutate({
       id: infoId,
       fields: {
         [fieldName]: {
           value,
-          type: templates
-            .find(t => t.name === sectionMappings[activeSection])
-            ?.fields.find(f => f.name === fieldName)?.type || 'text'
+          type
         }
       }
     });
@@ -427,25 +337,10 @@ export default function BusinessPage() {
                     <History className="h-4 w-4 mr-2" />
                     View History
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleEdit}
-                  >
-                    <Edit2 className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
                 </div>
 
-                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                  {currentSectionData?.content || (
-                    <p className="text-muted-foreground italic">
-                      No information available yet. Click Edit to get started.
-                    </p>
-                  )}
-                </div>
-
-                {currentTemplate && (
-                  <div className="grid gap-4 mt-6">
+                {currentTemplate && currentSectionData && (
+                  <div className="grid gap-6">
                     {currentTemplate.fields.map((field) => (
                       <div key={field.name} className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -459,7 +354,7 @@ export default function BusinessPage() {
                               {field.description}
                             </p>
                           </div>
-                          {currentSectionData && (
+                          {editingField !== field.name && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -471,27 +366,15 @@ export default function BusinessPage() {
                         </div>
 
                         {editingField === field.name ? (
-                          <div className="flex items-center gap-2">
-                            <FieldEditor
-                              field={field}
-                              value={currentSectionData?.fields?.[field.name]?.value}
-                              onChange={(value) => {
-                                if (currentSectionData) {
-                                  handleFieldUpdate(currentSectionData.id, field.name, value);
-                                }
-                              }}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEditingField(null)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
+                          <FieldEditor
+                            field={field}
+                            value={currentSectionData.fields?.[field.name]?.value}
+                            onSave={(value) => handleFieldUpdate(currentSectionData.id, field.name, value, field.type)}
+                            onCancel={() => setEditingField(null)}
+                          />
                         ) : (
                           <div className="bg-muted rounded-md p-2">
-                            {currentSectionData?.fields?.[field.name] ? (
+                            {currentSectionData.fields?.[field.name] ? (
                               <p className="text-sm">
                                 {formatFieldValue(
                                   currentSectionData.fields[field.name].value,
@@ -514,43 +397,6 @@ export default function BusinessPage() {
           </TabsContent>
         ))}
       </Tabs>
-
-      <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{selectedInfo ? "Edit" : "Add"} Information</DialogTitle>
-            <DialogDescription>
-              {selectedInfo ? "Update" : "Add"} content for {getTitleFromSection(activeSection)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              className="min-h-[300px]"
-              placeholder={`Enter ${getTitleFromSection(activeSection)} information here...`}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={updateBusinessInfo.isPending || createBusinessInfo.isPending}
-            >
-              {updateBusinessInfo.isPending || createBusinessInfo.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
         <DialogContent className="max-w-2xl">
