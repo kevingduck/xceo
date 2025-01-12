@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 
@@ -18,6 +18,21 @@ const configureCEOSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
   businessDescription: z.string().min(1, "Business description is required"),
   objectives: z.array(z.string()).min(1, "At least one objective is required")
+});
+
+const VALID_SECTIONS = [
+  "Business Overview",
+  "Financial Overview", 
+  "Market Intelligence",
+  "Human Capital",
+  "Operations"
+] as const;
+
+const businessInfoSchema = z.object({
+  section: z.enum(VALID_SECTIONS),
+  title: z.string().min(1, "Title is required"),
+  content: z.string().min(1, "Content is required"),
+  metadata: z.record(z.any()).optional().default({})
 });
 
 export function registerRoutes(app: Express): Server {
@@ -157,31 +172,31 @@ export function registerRoutes(app: Express): Server {
       // Create initial business info entries
       const sections = [
         {
-          section: "overview",
+          section: "Business Overview",
           title: "Business Overview",
           content: `${businessName}\n\n${businessDescription}\n\nKey Objectives:\n${objectives.map(obj => `- ${obj}`).join('\n')}`,
           metadata: { source: "initial-setup" }
         },
         {
-          section: "finance",
+          section: "Financial Overview",
           title: "Financial Overview",
           content: "Financial metrics and goals will be tracked here.",
           metadata: { source: "initial-setup" }
         },
         {
-          section: "market",
+          section: "Market Intelligence",
           title: "Market Intelligence",
           content: "Market analysis and competitor insights will be documented here.",
           metadata: { source: "initial-setup" }
         },
         {
-          section: "humanCapital",
+          section: "Human Capital",
           title: "Human Capital",
           content: "Team structure and organizational development plans will be outlined here.",
           metadata: { source: "initial-setup" }
         },
         {
-          section: "operations",
+          section: "Operations",
           title: "Operations",
           content: "Operational processes and improvement initiatives will be detailed here.",
           metadata: { source: "initial-setup" }
@@ -209,11 +224,10 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
-      console.log("Fetching business info for user:", req.user.id);
       const userBusinessInfo = await db.query.businessInfo.findMany({
         where: eq(businessInfo.userId, req.user.id),
       });
-      console.log("Found business info:", userBusinessInfo);
+      console.log("Found business info sections:", userBusinessInfo.map(info => info.section));
       res.json(userBusinessInfo);
     } catch (error) {
       console.error("Error fetching business info:", error);
@@ -225,11 +239,33 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
-      console.log("Creating new business info:", req.body);
-      const { section, title, content } = req.body;
+      console.log("Creating new business info with data:", req.body);
 
-      if (!section || !title || !content) {
-        return res.status(400).send("Missing required fields");
+      const result = businessInfoSchema.safeParse(req.body);
+      if (!result.success) {
+        console.error("Validation error:", result.error);
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const { section, title, content, metadata } = result.data;
+
+      // Check if section already exists for user
+      const [existingSection] = await db
+        .select()
+        .from(businessInfo)
+        .where(
+          and(
+            eq(businessInfo.userId, req.user.id),
+            eq(businessInfo.section, section)
+          )
+        )
+        .limit(1);
+
+      if (existingSection) {
+        console.error("Section already exists:", section);
+        return res.status(400).send(`Section "${section}" already exists`);
       }
 
       const [newInfo] = await db.insert(businessInfo)
@@ -238,7 +274,7 @@ export function registerRoutes(app: Express): Server {
           section,
           title,
           content,
-          metadata: {},
+          metadata
         })
         .returning();
 
