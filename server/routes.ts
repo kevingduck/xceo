@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { tasks, chatMessages, analytics, users, businessInfo } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 
@@ -459,6 +459,127 @@ Culture & Values:
     } catch (error) {
       console.error("Error fetching analytics:", error);
       res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // Add these routes after the existing GET routes for admin
+  app.patch("/api/admin/:table/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { table, id } = req.params;
+    const tableId = parseInt(id);
+    if (isNaN(tableId)) {
+      return res.status(400).json({ message: "Invalid ID format" });
+    }
+
+    try {
+      let result;
+      switch (table) {
+        case 'users':
+          [result] = await db
+            .update(users)
+            .set(req.body)
+            .where(eq(users.id, tableId))
+            .returning();
+          break;
+        case 'business_info':
+          [result] = await db
+            .update(businessInfo)
+            .set(req.body)
+            .where(eq(businessInfo.id, tableId))
+            .returning();
+          break;
+        case 'tasks':
+          [result] = await db
+            .update(tasks)
+            .set(req.body)
+            .where(eq(tasks.id, tableId))
+            .returning();
+          break;
+        case 'chat_messages':
+          [result] = await db
+            .update(chatMessages)
+            .set(req.body)
+            .where(eq(chatMessages.id, tableId))
+            .returning();
+          break;
+        case 'analytics':
+          [result] = await db
+            .update(analytics)
+            .set(req.body)
+            .where(eq(analytics.id, tableId))
+            .returning();
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid table name" });
+      }
+
+      if (!result) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error(`Error updating ${table}:`, error);
+      res.status(500).json({ message: `Failed to update ${table}` });
+    }
+  });
+
+  app.delete("/api/admin/:table", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { table } = req.params;
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Invalid or empty IDs array" });
+    }
+
+    try {
+      let result;
+      switch (table) {
+        case 'users':
+          result = await db
+            .delete(users)
+            .where(inArray(users.id, ids))
+            .returning();
+          break;
+        case 'business_info':
+          result = await db
+            .delete(businessInfo)
+            .where(inArray(businessInfo.id, ids))
+            .returning();
+          break;
+        case 'tasks':
+          result = await db
+            .delete(tasks)
+            .where(inArray(tasks.id, ids))
+            .returning();
+          break;
+        case 'chat_messages':
+          result = await db
+            .delete(chatMessages)
+            .where(inArray(chatMessages.id, ids))
+            .returning();
+          break;
+        case 'analytics':
+          result = await db
+            .delete(analytics)
+            .where(inArray(analytics.id, ids))
+            .returning();
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid table name" });
+      }
+
+      res.json({ message: "Items deleted successfully", deleted: result });
+    } catch (error) {
+      console.error(`Error deleting from ${table}:`, error);
+      res.status(500).json({ message: `Failed to delete from ${table}` });
     }
   });
 
