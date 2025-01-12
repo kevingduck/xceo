@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { users } from "@db/schema";
+import { setupAuth } from "./auth";
 
 const app = express();
 app.use(express.json());
@@ -66,6 +67,10 @@ app.use((req, res, next) => {
     verifyEnvironment();
     await verifyDatabaseConnection();
 
+    // Setup authentication first
+    setupAuth(app);
+
+    // Then register all other routes
     const server = registerRoutes(app);
 
     // Global error handler with better logging

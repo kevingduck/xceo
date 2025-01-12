@@ -1,10 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { tasks, chatMessages, analytics, users, businessInfo } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 
@@ -20,24 +19,7 @@ const configureCEOSchema = z.object({
   objectives: z.array(z.string()).min(1, "At least one objective is required")
 });
 
-const VALID_SECTIONS = [
-  "Business Overview",
-  "Financial Overview",
-  "Market Intelligence",
-  "Human Capital",
-  "Operations"
-] as const;
-
-const businessInfoSchema = z.object({
-  section: z.enum(VALID_SECTIONS),
-  title: z.string().min(1, "Title is required"),
-  content: z.string().min(1, "Content is required"),
-  metadata: z.record(z.any()).optional().default({})
-});
-
 export function registerRoutes(app: Express): Server {
-  setupAuth(app);
-
   // Tasks API
   app.get("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
@@ -85,7 +67,6 @@ export function registerRoutes(app: Express): Server {
       const taskId = parseInt(req.params.id);
       if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
 
-      // Verify task belongs to user
       const [existingTask] = await db
         .select()
         .from(tasks)
@@ -122,7 +103,6 @@ export function registerRoutes(app: Express): Server {
       const taskId = parseInt(req.params.id);
       if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
 
-      // Verify task belongs to user
       const [existingTask] = await db
         .select()
         .from(tasks)
@@ -132,10 +112,7 @@ export function registerRoutes(app: Express): Server {
       if (!existingTask) return res.status(404).send("Task not found");
       if (existingTask.userId !== req.user.id) return res.status(403).send("Unauthorized");
 
-      await db
-        .delete(tasks)
-        .where(eq(tasks.id, taskId));
-
+      await db.delete(tasks).where(eq(tasks.id, taskId));
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting task:", error);
@@ -169,36 +146,125 @@ export function registerRoutes(app: Express): Server {
         })
         .where(eq(users.id, req.user.id));
 
-      // Create initial business info entries
+      // Create initial business info entries with detailed templates
       const sections = [
         {
           section: "Business Overview",
           title: "Business Overview",
-          content: `${businessName}\n\n${businessDescription}\n\nKey Objectives:\n${objectives.map(obj => `- ${obj}`).join('\n')}`,
-          metadata: { source: "initial-setup" }
-        },
-        {
-          section: "Financial Overview",
-          title: "Financial Overview",
-          content: "Financial metrics and goals will be tracked here.",
+          content: `Company Profile:
+- Company Name: ${businessName}
+- Industry: To be defined
+- Founded: To be defined
+- Location: To be defined
+
+Mission Statement:
+${businessDescription}
+
+Key Objectives:
+${objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
+
+Value Proposition:
+To be defined based on market research and customer feedback`,
           metadata: { source: "initial-setup" }
         },
         {
           section: "Market Intelligence",
           title: "Market Intelligence",
-          content: "Market analysis and competitor insights will be documented here.",
+          content: `Target Market:
+- Total Addressable Market: To be researched
+- Serviceable Obtainable Market: To be defined
+- Primary Customer Segments: To be identified
+
+Competitive Landscape:
+1. Direct Competitors
+   - To be researched and analyzed
+   - Key differentiators to be identified
+2. Indirect Competitors
+   - Alternative solutions to be mapped
+   - Market substitutes to be evaluated
+
+Market Trends:
+1. Industry trends to be analyzed
+2. Technology trends to be evaluated
+3. Consumer behavior patterns to be studied
+
+Growth Opportunities:
+1. Market expansion possibilities
+2. Product development directions
+3. Partnership potentials`,
           metadata: { source: "initial-setup" }
         },
         {
-          section: "Human Capital",
-          title: "Human Capital",
-          content: "Team structure and organizational development plans will be outlined here.",
+          section: "Financial Overview",
+          title: "Financial Overview",
+          content: `Current Financials:
+- Revenue: To be tracked
+- Expenses: To be monitored
+- Profit Margins: To be calculated
+
+Key Metrics:
+1. Customer Acquisition Cost (CAC): To be measured
+2. Lifetime Value (LTV): To be calculated
+3. Monthly Recurring Revenue (MRR): To be tracked
+
+Investment Status:
+- Funding Round: To be determined
+- Capital Raised: To be tracked
+- Runway: To be calculated
+
+Financial Goals:
+1. Revenue targets to be set
+2. Profitability milestones to be defined
+3. Investment strategy to be developed`,
           metadata: { source: "initial-setup" }
         },
         {
           section: "Operations",
           title: "Operations",
-          content: "Operational processes and improvement initiatives will be detailed here.",
+          content: `Core Business Processes:
+1. Product/Service Delivery
+   - Standard operating procedures to be defined
+   - Quality control measures to be implemented
+   - Delivery timelines to be established
+
+2. Customer Support
+   - Service standards to be set
+   - Response time targets to be defined
+   - Customer satisfaction goals to be established
+
+Infrastructure:
+- Technology stack to be defined
+- Tools and systems to be implemented
+- Integration points to be identified
+
+Operational Metrics:
+1. Efficiency KPIs to be defined
+2. Quality standards to be set
+3. Cost optimization targets to be established`,
+          metadata: { source: "initial-setup" }
+        },
+        {
+          section: "Human Capital",
+          title: "Human Capital",
+          content: `Organizational Structure:
+- Leadership team to be defined
+- Departmental structure to be established
+- Reporting lines to be clarified
+
+Hiring Plan:
+- Key positions to be identified
+- Recruitment timeline to be set
+- Skills requirements to be defined
+
+Team Development:
+1. Training needs to be assessed
+2. Career paths to be defined
+3. Performance metrics to be established
+
+Culture & Values:
+- Company values to be defined
+- Team building activities to be planned
+- Recognition programs to be developed`,
           metadata: { source: "initial-setup" }
         }
       ];
@@ -218,214 +284,18 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-
-  // Business Info API
-  app.get("/api/business-info", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const userBusinessInfo = await db.query.businessInfo.findMany({
-        where: eq(businessInfo.userId, req.user.id),
-      });
-      console.log("Found business info sections:", userBusinessInfo.map(info => info.section));
-      res.json(userBusinessInfo);
-    } catch (error) {
-      console.error("Error fetching business info:", error);
-      res.status(500).send("Failed to fetch business information");
-    }
-  });
-
-  app.post("/api/business-info", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      console.log("Creating new business info with data:", req.body);
-
-      const result = businessInfoSchema.safeParse(req.body);
-      if (!result.success) {
-        console.error("Validation error:", result.error);
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
-      }
-
-      const { section, title, content, metadata } = result.data;
-
-      // Check if section already exists for user
-      const [existingSection] = await db
-        .select()
-        .from(businessInfo)
-        .where(
-          and(
-            eq(businessInfo.userId, req.user.id),
-            eq(businessInfo.section, section)
-          )
-        )
-        .limit(1);
-
-      if (existingSection) {
-        console.error("Section already exists:", section);
-        return res.status(400).send(`Section "${section}" already exists`);
-      }
-
-      const [newInfo] = await db.insert(businessInfo)
-        .values({
-          userId: req.user.id,
-          section,
-          title,
-          content,
-          metadata
-        })
-        .returning();
-
-      console.log("Created new business info:", newInfo);
-      res.json(newInfo);
-    } catch (error) {
-      console.error("Error creating business info:", error);
-      res.status(500).send("Failed to create business information");
-    }
-  });
-
-  app.get("/api/business-info/history/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const infoId = parseInt(req.params.id);
-      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
-
-      const [info] = await db
-        .select()
-        .from(businessInfo)
-        .where(eq(businessInfo.id, infoId))
-        .limit(1);
-
-      if (!info) return res.status(404).send("Business info not found");
-      if (info.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      const history = await db.query.businessInfoHistory.findMany({
-        where: eq(businessInfoHistory.businessInfoId, infoId),
-        orderBy: (history, { desc }) => [desc(history.updatedAt)],
-        limit: 10
-      });
-
-      res.json(history);
-    } catch (error) {
-      console.error("Error fetching history:", error);
-      res.status(500).send("Failed to fetch history");
-    }
-  });
-
-  app.patch("/api/business-info/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const infoId = parseInt(req.params.id);
-      console.log("Updating business info:", infoId, req.body);
-
-      if (isNaN(infoId)) {
-        console.error("Invalid business info ID:", req.params.id);
-        return res.status(400).send("Invalid ID");
-      }
-
-      // Verify business info exists and belongs to user
-      const [existingInfo] = await db
-        .select()
-        .from(businessInfo)
-        .where(eq(businessInfo.id, infoId))
-        .limit(1);
-
-      console.log("Found existing info:", existingInfo);
-
-      if (!existingInfo) {
-        console.error("Business info not found:", infoId);
-        return res.status(404).send("Business info not found");
-      }
-
-      if (existingInfo.userId !== req.user.id) {
-        console.error("Unauthorized access to business info:", infoId);
-        return res.status(403).send("Unauthorized");
-      }
-
-      // Save the previous version to history
-      await db.insert(businessInfoHistory).values({
-        businessInfoId: infoId,
-        userId: req.user.id,
-        content: existingInfo.content,
-        metadata: existingInfo.metadata,
-        updatedBy: "user",
-      });
-
-      // Update the business info
-      const [updatedInfo] = await db
-        .update(businessInfo)
-        .set({
-          content: req.body.content,
-          updatedAt: new Date()
-        })
-        .where(eq(businessInfo.id, infoId))
-        .returning();
-
-      console.log("Updated business info:", updatedInfo);
-      res.json(updatedInfo);
-    } catch (error) {
-      console.error("Error updating business info:", error);
-      res.status(500).send("Failed to update business information");
-    }
-  });
-
-  app.delete("/api/business-info/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const infoId = parseInt(req.params.id);
-      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
-
-      // Verify business info exists and belongs to user
-      const [existingInfo] = await db
-        .select()
-        .from(businessInfo)
-        .where(eq(businessInfo.id, infoId))
-        .limit(1);
-
-      if (!existingInfo) {
-        return res.status(404).send("Business info not found");
-      }
-
-      if (existingInfo.userId !== req.user.id) {
-        return res.status(403).send("Unauthorized");
-      }
-
-      // First delete history entries
-      await db
-        .delete(businessInfoHistory)
-        .where(eq(businessInfoHistory.businessInfoId, infoId));
-
-      // Then delete the main entry
-      await db
-        .delete(businessInfo)
-        .where(eq(businessInfo.id, infoId));
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting business info:", error);
-      res.status(500).send("Failed to delete business information");
-    }
-  });
-
-  // Chat API with improved conversation handling and error protection
+  // Chat API
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
-      // Get last 50 messages instead of all to maintain context
+      // Get all messages to maintain context
       const messages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
-        orderBy: (messages, { desc }) => [desc(messages.createdAt)],
-        limit: 50
+        orderBy: (messages, { asc }) => [asc(messages.createdAt)]
       });
 
-      // Reverse to maintain chronological order
-      res.json(messages.reverse());
+      res.json(messages);
     } catch (error) {
       console.error("Error fetching chat messages:", error);
       res.status(500).send("Failed to fetch chat messages");
@@ -457,7 +327,7 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, req.user.id))
         .limit(1);
 
-      // Get last 10 messages for context, excluding the message we just inserted
+      // Get recent messages for context
       const recentMessages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
         orderBy: (messages, { desc }) => [desc(messages.createdAt)],

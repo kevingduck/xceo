@@ -1,155 +1,138 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, chatMessages, type Task, type BusinessInfo } from '@db/schema';
-import { eq, and } from 'drizzle-orm';
+import { tasks, businessInfo, type Task } from '@db/schema';
+import { eq } from 'drizzle-orm';
 
 // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-type ToolFunction = {
+type BusinessSection = {
   name: string;
-  description: string;
-  parameters: Record<string, any>;
+  template: string;
 };
 
-const VALID_SECTIONS = [
-  "Business Overview",
-  "Financial Overview",
-  "Market Intelligence",
-  "Human Capital",
-  "Operations"
-] as const;
-
-const availableTools: ToolFunction[] = [
+const businessSections: BusinessSection[] = [
   {
-    name: "update_business_info",
-    description: "Update a section of business information when there are significant, concrete insights or decisions that need to be recorded",
-    parameters: {
-      section: "string", // Must be one of VALID_SECTIONS
-      content: "string", // the new content
-      reason: "string" // why this update is being made
-    }
+    name: "Business Overview",
+    template: `Company Profile:
+- Company Name: [Name]
+- Industry: [Industry]
+- Founded: [Year]
+- Location: [Location]
+
+Mission Statement:
+[A clear, concise statement of the company's purpose and values]
+
+Key Objectives:
+1. [Primary business goal]
+2. [Growth target]
+3. [Market position goal]
+
+Value Proposition:
+[Description of unique value offered to customers]`
   },
   {
-    name: "log_conversation_summary",
-    description: "Log a summary of the conversation as business context when a natural conclusion is reached",
-    parameters: {
-      summary: "string",
-      keyInsights: "string[]",
-      actionItems: "string[]"
-    }
+    name: "Financial Overview",
+    template: `Revenue Targets:
+- Annual Target: $[X]M
+- Monthly Growth Rate: [X]%
+- Current Run Rate: $[X]M
+
+Key Financial Metrics:
+1. Customer Acquisition Cost (CAC): $[X]
+2. Lifetime Value (LTV): $[X]
+3. Gross Margin: [X]%
+4. Monthly Recurring Revenue: $[X]K
+
+Investment & Funding:
+- Current Funding Stage: [Stage]
+- Capital Raised: $[X]M
+- Runway: [X] months
+
+Financial Goals:
+1. [Revenue milestone]
+2. [Profitability target]
+3. [Cost optimization goal]`
+  },
+  {
+    name: "Market Intelligence",
+    template: `Target Market:
+- Total Addressable Market: $[X]B
+- Serviceable Obtainable Market: $[X]M
+- Primary Customer Segments: [List segments]
+
+Competitive Landscape:
+1. Direct Competitors
+   - [Competitor 1]: [Key differentiator]
+   - [Competitor 2]: [Key differentiator]
+2. Indirect Competitors
+   - [Alternative solution]
+   - [Market substitute]
+
+Market Trends:
+1. [Industry trend 1]
+2. [Technology trend]
+3. [Consumer behavior shift]
+
+Growth Opportunities:
+1. [Market expansion opportunity]
+2. [Product development direction]
+3. [Partnership potential]`
+  },
+  {
+    name: "Human Capital",
+    template: `Organizational Structure:
+- Current Team Size: [X] employees
+- Departments: [List key departments]
+- Key Leadership Positions: [List positions]
+
+Hiring Plan:
+Q1: [Roles and headcount]
+Q2: [Roles and headcount]
+Q3: [Roles and headcount]
+Q4: [Roles and headcount]
+
+Team Development:
+1. Training Programs: [List programs]
+2. Career Growth Paths: [Define paths]
+3. Culture Initiatives: [List initiatives]
+
+Performance Metrics:
+- KPIs by Role
+- Development Goals
+- Team Satisfaction Metrics`
+  },
+  {
+    name: "Operations",
+    template: `Core Processes:
+1. Product/Service Delivery
+   - [Key process steps]
+   - [Quality metrics]
+   - [Delivery timeline]
+
+2. Customer Support
+   - Response Time Target: [X] hours
+   - Resolution Rate Target: [X]%
+   - Customer Satisfaction Goal: [X]%
+
+Technology Stack:
+- [List key technologies]
+- [Infrastructure details]
+- [Integration points]
+
+Operational Metrics:
+1. [Efficiency metric]
+2. [Quality metric]
+3. [Cost metric]
+
+Improvement Initiatives:
+1. [Current initiative]
+2. [Planned upgrade]
+3. [Process optimization]`
   }
 ];
-
-async function updateBusinessInfo(userId: number, params: any): Promise<BusinessInfo> {
-  const section = params.section as typeof VALID_SECTIONS[number];
-  if (!VALID_SECTIONS.includes(section)) {
-    throw new Error(`Invalid section: ${section}. Must be one of: ${VALID_SECTIONS.join(', ')}`);
-  }
-
-  // Find existing info for this section
-  const [existingInfo] = await db
-    .select()
-    .from(businessInfo)
-    .where(
-      and(
-        eq(businessInfo.userId, userId),
-        eq(businessInfo.section, section)
-      )
-    );
-
-  if (existingInfo) {
-    // Save to history first
-    await db.insert(businessInfoHistory).values({
-      businessInfoId: existingInfo.id,
-      userId,
-      content: existingInfo.content,
-      metadata: existingInfo.metadata,
-      updatedBy: "ai",
-      reason: params.reason
-    });
-
-    // Update existing info
-    const [updatedInfo] = await db
-      .update(businessInfo)
-      .set({
-        content: params.content,
-        updatedAt: new Date()
-      })
-      .where(eq(businessInfo.id, existingInfo.id))
-      .returning();
-
-    return updatedInfo;
-  } else {
-    // Create new info
-    const [newInfo] = await db
-      .insert(businessInfo)
-      .values({
-        userId,
-        section,
-        title: section,
-        content: params.content,
-        metadata: {}
-      })
-      .returning();
-
-    return newInfo;
-  }
-}
-
-async function logConversationSummary(userId: number, params: any): Promise<void> {
-  // Store summary as a special type of business info
-  const [existingInfo] = await db
-    .select()
-    .from(businessInfo)
-    .where(
-      and(
-        eq(businessInfo.userId, userId),
-        eq(businessInfo.section, 'conversationSummaries')
-      )
-    );
-
-  const summaryContent = JSON.stringify({
-    summary: params.summary,
-    keyInsights: params.keyInsights,
-    actionItems: params.actionItems,
-    timestamp: new Date().toISOString()
-  });
-
-  if (existingInfo) {
-    // Save to history first
-    await db.insert(businessInfoHistory).values({
-      businessInfoId: existingInfo.id,
-      userId,
-      content: existingInfo.content,
-      metadata: existingInfo.metadata,
-      updatedBy: "ai",
-      reason: "Conversation summarization"
-    });
-
-    // Update existing summary
-    await db
-      .update(businessInfo)
-      .set({
-        content: summaryContent,
-        updatedAt: new Date()
-      })
-      .where(eq(businessInfo.id, existingInfo.id));
-  } else {
-    // Create new summary entry
-    await db
-      .insert(businessInfo)
-      .values({
-        userId,
-        section: 'conversationSummaries',
-        title: 'Conversation Summaries',
-        content: summaryContent,
-        metadata: {}
-      });
-  }
-}
 
 export async function processAIMessage(userId: number, userMessage: string, businessContext?: {
   name: string;
@@ -170,34 +153,33 @@ export async function processAIMessage(userId: number, userMessage: string, busi
 
     Your role is to be a thoughtful, strategic advisor who:
     1. Engages in natural, flowing conversation
-    2. Asks clarifying questions to better understand the situation
-    3. Only takes action (like updating business info) when there are concrete, valuable insights
-    4. Thinks critically about business implications before making suggestions
+    2. Asks clarifying questions to better understand situations
+    3. Provides actionable strategic advice
+    4. Creates focused tasks when there are clear action items
     5. Maintains context across the conversation
     6. Treats the user as a peer, not just following commands
 
     Communication Guidelines:
     - Be conversational and natural in your responses
     - Ask thoughtful questions when you need more context
-    - Don't force updates or actions unless there's clear value
-    - Think through implications before suggesting changes
+    - Think through implications before making suggestions
+    - Create tasks only when there are clear, actionable items
+    - Focus on quality strategic discussion over quantity of actions
     - Sometimes just listen and discuss without taking action
-    - Stay focused on the current topic until it reaches a natural conclusion
 
-    Available Business Sections (only update when truly necessary):
-    ${VALID_SECTIONS.join(", ")}
+    Business Information Templates:
+    ${businessSections.map(section => 
+      `${section.name}:\n${section.template}\n`
+    ).join('\n')}
 
-    You have access to these tools (use sparingly and only when appropriate):
-    ${JSON.stringify(availableTools, null, 2)}
-
-    Tool Usage Format:
-    <tool>tool_name</tool>
-    <parameters>
+    When creating tasks, format them as:
+    <task>
     {
-      "parameter1": "value1",
-      "parameter2": "value2"
+      "title": "Task title",
+      "description": "Detailed task description",
+      "status": "todo"
     }
-    </parameters>
+    </task>
 
     Previous conversation context:
     ${businessContext.recentMessages ? businessContext.recentMessages.map(msg => 
@@ -217,8 +199,8 @@ export async function processAIMessage(userId: number, userMessage: string, busi
       model: "claude-3-5-sonnet-20241022",
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
-      max_tokens: 4096, // Increased token limit for longer conversations
-      temperature: 0.7, // Slightly increased temperature for more natural conversation
+      max_tokens: 4096,
+      temperature: 0.7,
     });
 
     // Ensure we have a text response
@@ -229,47 +211,40 @@ export async function processAIMessage(userId: number, userMessage: string, busi
 
     let finalResponse = messageContent.text;
 
-    // Check for tool invocations
-    const matches = finalResponse.match(/<tool>([^<]+)<\/tool>\s*<parameters>([^<]+)<\/parameters>/gm);
+    // Check for task creation
+    const taskMatches = finalResponse.match(/<task>([^<]+)<\/task>/gm);
 
-    if (matches) {
-      console.log("Found tool invocations:", matches.length);
-      for (const match of matches) {
-        const toolMatch = match.match(/<tool>([^<]+)<\/tool>/);
-        const paramsMatch = match.match(/<parameters>([^<]+)<\/parameters>/);
-
-        if (!toolMatch || !paramsMatch) continue;
-
-        const toolName = toolMatch[1];
-        let parameters;
+    if (taskMatches) {
+      console.log("Found task creations:", taskMatches.length);
+      for (const match of taskMatches) {
+        const taskJson = match.replace(/<\/?task>/g, '');
+        let taskData;
         try {
-          parameters = JSON.parse(paramsMatch[1]);
+          taskData = JSON.parse(taskJson);
         } catch (e) {
-          console.error("Failed to parse tool parameters:", e);
+          console.error("Failed to parse task data:", e);
           continue;
         }
 
-        console.log("Executing tool:", { toolName, parameters });
+        console.log("Creating task:", taskData);
 
         try {
-          if (toolName === "update_business_info") {
-            const info = await updateBusinessInfo(userId, parameters);
-            finalResponse = finalResponse.replace(
-              match, 
-              `✓ Updated ${info.section} information: ${parameters.reason}`
-            );
-          } else if (toolName === "log_conversation_summary") {
-            await logConversationSummary(userId, parameters);
-            finalResponse = finalResponse.replace(
-              match,
-              `✓ Conversation summarized and logged. Starting fresh conversation.`
-            );
-          }
-        } catch (error) {
-          console.error(`Error executing tool ${toolName}:`, error);
+          const [task] = await db.insert(tasks)
+            .values({
+              ...taskData,
+              userId,
+            })
+            .returning();
+
           finalResponse = finalResponse.replace(
             match,
-            `⚠ Failed to execute ${toolName}: ${error.message}`
+            `✓ Created task: ${task.title}`
+          );
+        } catch (error) {
+          console.error("Error creating task:", error);
+          finalResponse = finalResponse.replace(
+            match,
+            `⚠ Failed to create task: ${error.message}`
           );
         }
       }
