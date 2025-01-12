@@ -26,6 +26,7 @@ export default function DashboardLayout({
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => setIsTourOpen(true)}
                 className="flex items-center gap-2"
               >

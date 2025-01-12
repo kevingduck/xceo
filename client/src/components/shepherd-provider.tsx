@@ -1,16 +1,15 @@
-import { ReactNode, createContext, useContext } from "react";
-import { useShepherdTour } from 'react-shepherd';
-import type { Tour, Step } from 'shepherd.js';
+import { ReactNode, createContext, useContext, useEffect, useState } from "react";
+import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
 
 interface ShepherdContextType {
-  tour: Tour | null;
+  tour: Shepherd.Tour | null;
 }
 
 const ShepherdContext = createContext<ShepherdContextType>({ tour: null });
 
-export function useShepherdTourContext() {
-  return useContext(ShepherdContext);
+export function useShepherdTour() {
+  return useContext(ShepherdContext).tour;
 }
 
 interface ShepherdProviderProps {
@@ -18,9 +17,10 @@ interface ShepherdProviderProps {
 }
 
 export function ShepherdProvider({ children }: ShepherdProviderProps) {
-  const tour = useShepherdTour({
-    steps: [], // Initialize with empty steps, will be added by BusinessTour
-    tourOptions: {
+  const [tour, setTour] = useState<Shepherd.Tour | null>(null);
+
+  useEffect(() => {
+    const newTour = new Shepherd.Tour({
       defaultStepOptions: {
         cancelIcon: {
           enabled: true
@@ -29,14 +29,30 @@ export function ShepherdProvider({ children }: ShepherdProviderProps) {
         scrollTo: { behavior: 'smooth', block: 'center' },
         highlightClass: 'shepherd-highlight',
         modalOverlayOpeningPadding: 8,
-        modalOverlayOpeningRadius: 4
+        modalOverlayOpeningRadius: 4,
+        popperOptions: {
+          modifiers: [
+            {
+              name: 'offset',
+              options: {
+                offset: [0, 16]
+              }
+            }
+          ]
+        }
       },
       useModalOverlay: true
-    }
-  });
+    });
+
+    setTour(newTour);
+
+    return () => {
+      newTour.complete();
+    };
+  }, []);
 
   return (
-    <ShepherdContext.Provider value={{ tour: tour.tour }}>
+    <ShepherdContext.Provider value={{ tour }}>
       {children}
     </ShepherdContext.Provider>
   );
