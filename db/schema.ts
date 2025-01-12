@@ -1,6 +1,7 @@
-import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { relations, type InferModel } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -110,12 +111,20 @@ export const analyticsRelations = relations(analytics, ({ one }) => ({
   })
 }));
 
-export const insertUserSchema = createInsertSchema(users);
+export const insertUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  githubToken: z.string().optional(),
+  businessName: z.string().optional(),
+  businessDescription: z.string().optional(),
+  businessObjectives: z.array(z.string()).optional(),
+});
+
 export const selectUserSchema = createSelectSchema(users);
 export const insertBusinessInfoSchema = createInsertSchema(businessInfo);
 export const selectBusinessInfoSchema = createSelectSchema(businessInfo);
 
-export type InsertUser = typeof users.$inferInsert;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = typeof users.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
