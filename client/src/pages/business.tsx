@@ -63,7 +63,7 @@ const sections: Section[] = [
 ];
 
 export default function BusinessPage() {
-  const [activeSection, setActiveSection] = useState(sections[0].id);
+  const [activeSection, setActiveSection] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
@@ -73,14 +73,12 @@ export default function BusinessPage() {
   const queryClient = useQueryClient();
 
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
-    queryKey: ["/api/business-info"],
-    staleTime: Infinity
+    queryKey: ["/api/business-info"]
   });
 
   const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
     queryKey: ["/api/business-info/history", selectedInfo?.id],
-    enabled: showHistory && !!selectedInfo,
-    staleTime: Infinity
+    enabled: showHistory && !!selectedInfo
   });
 
   const updateBusinessInfo = useMutation({
@@ -130,9 +128,8 @@ export default function BusinessPage() {
     }
   };
 
-  const sectionInfo = sections.find(s => s.id === activeSection);
   const currentSectionData = businessInfo?.find(
-    info => info.section === activeSection
+    info => info.section.toLowerCase() === activeSection.toLowerCase()
   );
 
   if (isBusinessLoading) {
@@ -162,7 +159,7 @@ export default function BusinessPage() {
         </TabsList>
 
         {sections.map((section) => (
-          <TabsContent key={section.id} value={section.id}>
+          <TabsContent key={section.id} value={section.id} className="mt-0">
             <Card>
               <CardHeader>
                 <CardTitle>{section.title}</CardTitle>
@@ -199,7 +196,7 @@ export default function BusinessPage() {
                     {currentSectionData ? "Edit" : "Add Information"}
                   </Button>
                 </div>
-                <div className="prose prose-sm max-w-none">
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
                   {currentSectionData?.content || (
                     <p className="text-muted-foreground italic">
                       No information available yet. Click Add Information to get started.
@@ -217,16 +214,18 @@ export default function BusinessPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {currentSectionData ? "Edit" : "Add"} {sectionInfo?.title}
+              {currentSectionData ? "Edit" : "Add"} Information
             </DialogTitle>
-            <DialogDescription>{sectionInfo?.description}</DialogDescription>
+            <DialogDescription>
+              Update the content for this section
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               className="min-h-[300px]"
-              placeholder={`Enter ${sectionInfo?.title.toLowerCase()} information here...`}
+              placeholder="Enter information here..."
             />
           </div>
           <DialogFooter>
@@ -272,15 +271,14 @@ export default function BusinessPage() {
                   <CardHeader className="py-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-muted-foreground">
-                        Updated {entry.updatedBy === "ai" ? "by AI" : "manually"} on{" "}
-                        {new Date(entry.updatedAt).toLocaleDateString()}
+                        Updated on {new Date(entry.updatedAt).toLocaleDateString()}
                       </div>
                       {entry.reason && (
                         <Badge variant="outline">{entry.reason}</Badge>
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="prose prose-sm max-w-none">
+                  <CardContent className="prose prose-sm max-w-none whitespace-pre-wrap">
                     {entry.content}
                   </CardContent>
                 </Card>
