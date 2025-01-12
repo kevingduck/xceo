@@ -1,5 +1,5 @@
 import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
-import { relations, type InferModel } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,6 +13,23 @@ export const users = pgTable("users", {
   businessObjectives: jsonb("business_objectives").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
+
+// Split the schemas for different use cases
+export const insertUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  githubToken: z.string().optional(),
+  businessName: z.string().optional(),
+  businessDescription: z.string().optional(),
+  businessObjectives: z.array(z.string()).optional()
+});
+
+export const loginUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const selectUserSchema = createSelectSchema(users);
 
 export const businessInfo = pgTable("business_info", {
   id: serial("id").primaryKey(),
@@ -111,16 +128,6 @@ export const analyticsRelations = relations(analytics, ({ one }) => ({
   })
 }));
 
-export const insertUserSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  githubToken: z.string().optional(),
-  businessName: z.string().optional(),
-  businessDescription: z.string().optional(),
-  businessObjectives: z.array(z.string()).optional(),
-});
-
-export const selectUserSchema = createSelectSchema(users);
 export const insertBusinessInfoSchema = createInsertSchema(businessInfo);
 export const selectBusinessInfoSchema = createSelectSchema(businessInfo);
 
