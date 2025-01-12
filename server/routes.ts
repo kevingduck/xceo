@@ -145,6 +145,7 @@ export function registerRoutes(app: Express): Server {
 
       const { businessName, businessDescription, objectives } = result.data;
 
+      // Update user profile
       await db
         .update(users)
         .set({
@@ -152,8 +153,49 @@ export function registerRoutes(app: Express): Server {
           businessDescription,
           businessObjectives: objectives
         })
-        .where(eq(users.id, req.user.id))
-        .returning();
+        .where(eq(users.id, req.user.id));
+
+      // Create initial business info entries
+      const sections = [
+        {
+          section: "overview",
+          title: "Business Overview",
+          content: `${businessName}\n\n${businessDescription}\n\nKey Objectives:\n${objectives.map(obj => `- ${obj}`).join('\n')}`,
+          metadata: { source: "initial-setup" }
+        },
+        {
+          section: "finance",
+          title: "Financial Overview",
+          content: "Financial metrics and goals will be tracked here.",
+          metadata: { source: "initial-setup" }
+        },
+        {
+          section: "market",
+          title: "Market Intelligence",
+          content: "Market analysis and competitor insights will be documented here.",
+          metadata: { source: "initial-setup" }
+        },
+        {
+          section: "humanCapital",
+          title: "Human Capital",
+          content: "Team structure and organizational development plans will be outlined here.",
+          metadata: { source: "initial-setup" }
+        },
+        {
+          section: "operations",
+          title: "Operations",
+          content: "Operational processes and improvement initiatives will be detailed here.",
+          metadata: { source: "initial-setup" }
+        }
+      ];
+
+      // Insert initial business info sections
+      await db.insert(businessInfo).values(
+        sections.map(section => ({
+          ...section,
+          userId: req.user.id
+        }))
+      );
 
       res.json({ message: "CEO configured successfully" });
     } catch (error) {
