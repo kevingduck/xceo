@@ -20,7 +20,6 @@ const configureCEOSchema = z.object({
   objectives: z.array(z.string()).min(1, "At least one objective is required")
 });
 
-
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
@@ -210,10 +209,11 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
+      console.log("Fetching business info for user:", req.user.id);
       const userBusinessInfo = await db.query.businessInfo.findMany({
         where: eq(businessInfo.userId, req.user.id),
-        orderBy: (info, { desc }) => [desc(info.updatedAt)]
       });
+      console.log("Found business info:", userBusinessInfo);
       res.json(userBusinessInfo);
     } catch (error) {
       console.error("Error fetching business info:", error);
@@ -255,16 +255,31 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const infoId = parseInt(req.params.id);
-      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
+      console.log("Updating business info:", infoId, req.body);
 
+      if (isNaN(infoId)) {
+        console.error("Invalid business info ID:", req.params.id);
+        return res.status(400).send("Invalid ID");
+      }
+
+      // Verify business info exists and belongs to user
       const [existingInfo] = await db
         .select()
         .from(businessInfo)
         .where(eq(businessInfo.id, infoId))
         .limit(1);
 
-      if (!existingInfo) return res.status(404).send("Business info not found");
-      if (existingInfo.userId !== req.user.id) return res.status(403).send("Unauthorized");
+      console.log("Found existing info:", existingInfo);
+
+      if (!existingInfo) {
+        console.error("Business info not found:", infoId);
+        return res.status(404).send("Business info not found");
+      }
+
+      if (existingInfo.userId !== req.user.id) {
+        console.error("Unauthorized access to business info:", infoId);
+        return res.status(403).send("Unauthorized");
+      }
 
       // Save the previous version to history
       await db.insert(businessInfoHistory).values({
@@ -285,6 +300,7 @@ export function registerRoutes(app: Express): Server {
         .where(eq(businessInfo.id, infoId))
         .returning();
 
+      console.log("Updated business info:", updatedInfo);
       res.json(updatedInfo);
     } catch (error) {
       console.error("Error updating business info:", error);

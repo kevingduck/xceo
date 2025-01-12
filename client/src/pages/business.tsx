@@ -73,7 +73,13 @@ export default function BusinessPage() {
   const queryClient = useQueryClient();
 
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
-    queryKey: ["/api/business-info"]
+    queryKey: ["/api/business-info"],
+    onSuccess: (data) => {
+      console.log("Fetched business info:", data);
+    },
+    onError: (error) => {
+      console.error("Failed to fetch business info:", error);
+    }
   });
 
   const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
@@ -114,6 +120,7 @@ export default function BusinessPage() {
   });
 
   const handleEdit = (info: BusinessInfo) => {
+    console.log("Editing business info:", info);
     setSelectedInfo(info);
     setEditedContent(info.content);
     setIsEditing(true);
@@ -131,6 +138,9 @@ export default function BusinessPage() {
   const currentSectionData = businessInfo?.find(
     info => info.section.toLowerCase() === activeSection.toLowerCase()
   );
+
+  console.log("Current section:", activeSection);
+  console.log("Current section data:", currentSectionData);
 
   if (isBusinessLoading) {
     return (
@@ -181,16 +191,17 @@ export default function BusinessPage() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleEdit(currentSectionData || {
-                      id: 0,
-                      section: section.id,
-                      title: section.title,
-                      content: "",
-                      metadata: {},
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      userId: 0
-                    })}
+                    onClick={() => {
+                      if (currentSectionData) {
+                        handleEdit(currentSectionData);
+                      } else {
+                        toast({
+                          title: "Error",
+                          description: "No business information found for this section",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
                     {currentSectionData ? "Edit" : "Add Information"}
