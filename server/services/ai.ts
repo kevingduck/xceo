@@ -341,7 +341,7 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     });
 
     const response = await anthropic.messages.create({
-      model: "claude-3-sonnet-20241022",
+      model: "claude-3-opus-20240229",
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
       max_tokens: 4096,
