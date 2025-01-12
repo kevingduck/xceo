@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, loginUserSchema, type SelectUser } from "@db/schema";
+import { users, insertUserSchema, loginUserSchema } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -105,9 +105,9 @@ export function setupAuth(app: Express) {
       console.log("Registration attempt:", req.body);
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        return res
-          .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+        const errorMessage = result.error.issues.map(i => i.message).join(", ");
+        console.error("Registration validation failed:", errorMessage);
+        return res.status(400).send("Invalid input: " + errorMessage);
       }
 
       const { username, password } = result.data;
@@ -155,9 +155,9 @@ export function setupAuth(app: Express) {
     console.log("Login attempt:", req.body);
     const result = loginUserSchema.safeParse(req.body);
     if (!result.success) {
-      return res
-        .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+      const errorMessage = result.error.issues.map(i => i.message).join(", ");
+      console.error("Login validation failed:", errorMessage);
+      return res.status(400).send("Invalid input: " + errorMessage);
     }
 
     passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
