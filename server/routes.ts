@@ -7,6 +7,7 @@ import { tasks, chatMessages, analytics, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
+import { trackTaskMetrics, trackResponseTime } from "./services/analytics";
 
 const configureCEOSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
@@ -70,6 +71,10 @@ export function registerRoutes(app: Express): Server {
         userId: req.user.id
       })
       .returning();
+
+    // Track analytics after task creation
+    await trackTaskMetrics(req.user.id);
+
     res.json(task[0]);
   });
 
@@ -79,7 +84,6 @@ export function registerRoutes(app: Express): Server {
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
 
-    // Verify task belongs to user
     const [existingTask] = await db
       .select()
       .from(tasks)
@@ -95,6 +99,9 @@ export function registerRoutes(app: Express): Server {
       .where(eq(tasks.id, taskId))
       .returning();
 
+    // Track analytics after task update
+    await trackTaskMetrics(req.user.id);
+
     res.json(updatedTask);
   });
 
@@ -104,7 +111,6 @@ export function registerRoutes(app: Express): Server {
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
 
-    // Verify task belongs to user
     const [existingTask] = await db
       .select()
       .from(tasks)
@@ -117,6 +123,9 @@ export function registerRoutes(app: Express): Server {
     await db
       .delete(tasks)
       .where(eq(tasks.id, taskId));
+
+    // Track analytics after deletion
+    await trackTaskMetrics(req.user.id);
 
     res.json({ success: true });
   });
@@ -136,6 +145,8 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
+      const startTime = Date.now();
+
       // First save the user's message
       const [userMessage] = await db.insert(chatMessages)
         .values({
@@ -154,7 +165,7 @@ export function registerRoutes(app: Express): Server {
 
       const businessContext = user.businessName ? {
         name: user.businessName,
-        description: user.businessDescription,
+        description: user.businessDescription || "",
         objectives: user.businessObjectives as string[]
       } : undefined;
 
@@ -164,6 +175,10 @@ export function registerRoutes(app: Express): Server {
         req.body.content,
         businessContext
       );
+
+      // Calculate response time
+      const responseTime = Date.now() - startTime;
+      await trackResponseTime(req.user.id, responseTime);
 
       // Save AI's response
       const [savedResponse] = await db.insert(chatMessages)
@@ -186,7 +201,8 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     const userAnalytics = await db.query.analytics.findMany({
-      where: eq(analytics.userId, req.user.id)
+      where: eq(analytics.userId, req.user.id),
+      orderBy: (analytics, { desc }) => [desc(analytics.createdAt)]
     });
     res.json(userAnalytics);
   });

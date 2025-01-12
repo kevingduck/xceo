@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { AnalyticsCard } from "@/components/widgets/analytics-card";
+import { RocketIcon, TrendingUpIcon, BrainIcon } from "lucide-react";
 import type { Analytics } from "@db/schema";
 
 export default function Analytics() {
@@ -9,94 +11,163 @@ export default function Analytics() {
     queryKey: ["/api/analytics"]
   });
 
+  // Extract AI insights
+  const aiInsights = analytics
+    .find(a => a.type === 'ai_insights')
+    ?.data as {
+      summary: string;
+      recommendations: string[];
+      predictions: {
+        nextWeek: number;
+        nextMonth: number;
+      };
+    } || {
+      summary: "Loading insights...",
+      recommendations: [],
+      predictions: { nextWeek: 0, nextMonth: 0 }
+    };
+
   const taskCompletion = analytics
     .filter(a => a.type === "task_completion")
     .map(a => ({
       date: new Date(a.createdAt).toLocaleDateString(),
-      value: (a.data as any).completedTasks
+      value: (a.data as any).completedTasks,
+      rate: (a.data as any).completionRate * 100
     }));
 
   const responseTime = analytics
     .filter(a => a.type === "response_time")
     .map(a => ({
       date: new Date(a.createdAt).toLocaleDateString(),
-      value: (a.data as any).averageTime
+      value: (a.data as any).averageTime / 1000 // Convert to seconds
     }));
 
   const taskDistribution = analytics
     .filter(a => a.type === "task_distribution")
-    .map(a => ({
-      name: (a.data as any).category,
-      value: (a.data as any).count
-    }));
+    .map(a => Object.entries((a.data as any)).map(([name, value]) => ({
+      name,
+      value
+    }))).flat();
+
+  const latestCompletion = analytics
+    .find(a => a.type === "task_completion")
+    ?.data as any || {};
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <AnalyticsCard
+          title="Task Completion Rate"
+          value={`${Math.round((latestCompletion.completionRate || 0) * 100)}%`}
+          change={`${aiInsights.predictions.nextWeek > (latestCompletion.completionRate || 0) ? '+' : ''}${Math.round((aiInsights.predictions.nextWeek - (latestCompletion.completionRate || 0)) * 100)}%`}
+        />
+        <AnalyticsCard
           title="Total Tasks"
-          value={analytics.reduce((acc, a) => acc + ((a.data as any).totalTasks || 0), 0)}
-          change="+12%"
+          value={latestCompletion.totalTasks || 0}
+          change={`+${latestCompletion.completedTasks || 0}`}
         />
         <AnalyticsCard
-          title="Completion Rate"
-          value="87%"
-          change="+5%"
-        />
-        <AnalyticsCard
-          title="Active Projects"
-          value={analytics.reduce((acc, a) => acc + ((a.data as any).activeProjects || 0), 0)}
-          change="-2"
+          title="Avg. Completion Time"
+          value={`${Math.round((latestCompletion.averageTimeToComplete || 0) / 3600)}h`}
+          change="-2h"
         />
       </div>
 
+      <Card className="p-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BrainIcon className="h-5 w-5" />
+            AI Performance Insights
+          </CardTitle>
+          <CardDescription>{aiInsights.summary}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <h3 className="font-semibold">Recommendations:</h3>
+            <ul className="space-y-2">
+              {aiInsights.recommendations.map((rec, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <RocketIcon className="h-5 w-5 shrink-0 text-primary" />
+                  <span>{rec}</span>
+                </li>
+              ))}
+            </ul>
+            <Alert>
+              <AlertTitle className="flex items-center gap-2">
+                <TrendingUpIcon className="h-4 w-4" />
+                Predictions
+              </AlertTitle>
+              <AlertDescription>
+                <div className="mt-2 space-y-1">
+                  <p>Next week's completion rate: {Math.round(aiInsights.predictions.nextWeek * 100)}%</p>
+                  <p>Next month's completion rate: {Math.round(aiInsights.predictions.nextMonth * 100)}%</p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Task Completion Trend</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={taskCompletion}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#3b82f6" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <CardHeader>
+            <CardTitle>Task Completion Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={taskCompletion}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="value" name="Completed Tasks" stroke="#3b82f6" />
+                  <Line type="monotone" dataKey="rate" name="Completion Rate %" stroke="#10b981" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Response Time Analysis</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={responseTime}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <CardHeader>
+            <CardTitle>Response Time Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={responseTime}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Response Time (s)" fill="#3b82f6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="p-6 col-span-full">
-          <h3 className="text-lg font-semibold mb-4">Task Distribution</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={taskDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  fill="#3b82f6"
-                />
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <CardHeader>
+            <CardTitle>Task Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={taskDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    fill="#3b82f6"
+                  />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
         </Card>
       </div>
     </div>
