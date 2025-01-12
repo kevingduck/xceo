@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, type Task, type BusinessInfo } from '@db/schema';
+import { tasks, businessInfo, businessInfoHistory, chatMessages, type Task, type BusinessInfo } from '@db/schema';
 import { eq, and } from 'drizzle-orm';
 
 // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
@@ -31,6 +31,15 @@ const availableTools: ToolFunction[] = [
       section: "string", // e.g., 'finance', 'market', 'humanCapital'
       content: "string", // the new content
       reason: "string" // why this update is being made
+    }
+  },
+  {
+    name: "log_conversation_summary",
+    description: "Log a summary of the conversation as business context",
+    parameters: {
+      summary: "string",
+      keyInsights: "string[]",
+      actionItems: "string[]"
     }
   }
 ];
@@ -100,13 +109,74 @@ async function updateBusinessInfo(userId: number, params: any): Promise<Business
   }
 }
 
+async function logConversationSummary(userId: number, params: any): Promise<void> {
+  // Store summary as a special type of business info
+  const [existingInfo] = await db
+    .select()
+    .from(businessInfo)
+    .where(
+      and(
+        eq(businessInfo.userId, userId),
+        eq(businessInfo.section, 'conversationSummaries')
+      )
+    );
+
+  if (existingInfo) {
+    // Save to history first
+    await db.insert(businessInfoHistory).values({
+      businessInfoId: existingInfo.id,
+      userId,
+      content: existingInfo.content,
+      metadata: existingInfo.metadata,
+      updatedBy: "ai",
+      reason: "Conversation summarization"
+    });
+
+    // Update existing summary
+    await db
+      .update(businessInfo)
+      .set({
+        content: JSON.stringify({
+          summary: params.summary,
+          keyInsights: params.keyInsights,
+          actionItems: params.actionItems,
+          timestamp: new Date().toISOString()
+        }),
+        updatedAt: new Date()
+      })
+      .where(eq(businessInfo.id, existingInfo.id));
+  } else {
+    // Create new summary entry
+    await db
+      .insert(businessInfo)
+      .values({
+        userId,
+        section: 'conversationSummaries',
+        title: 'Conversation Summaries',
+        content: JSON.stringify({
+          summary: params.summary,
+          keyInsights: params.keyInsights,
+          actionItems: params.actionItems,
+          timestamp: new Date().toISOString()
+        }),
+        metadata: {}
+      });
+  }
+
+  // Clear previous messages
+  await db
+    .delete(chatMessages)
+    .where(eq(chatMessages.userId, userId));
+}
+
 export async function processAIMessage(userId: number, userMessage: string, businessContext?: {
   name: string;
   description: string;
   objectives: string[];
 }) {
-  const systemPrompt = businessContext ? 
+  let systemPrompt = businessContext ? 
     `You are an AI CEO assistant for ${businessContext.name}. Business Description: ${businessContext.description}. Key Objectives: ${businessContext.objectives.join(", ")}.
+
     You have access to the following tools that you can use to help manage the business:
     ${JSON.stringify(availableTools, null, 2)}
 
@@ -120,15 +190,15 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     </parameters>
 
     You can use multiple tools in one response. Always explain what you're doing before using tools.
-    For example, if you notice that market conditions have changed significantly based on the conversation,
-    use the update_business_info tool to update the market intelligence section.
+    When you detect that important business information has been discussed:
+    1. Use update_business_info to record it in the appropriate section
+    2. Be specific and detailed in the content
+    3. Clearly explain why you're making the update
 
-    When updating business information:
-    1. Be specific and detailed in the content
-    2. Clearly explain why you're making the update in the reason parameter
-    3. Keep historical context in mind
-
-    For your first message, welcome the user and suggest 2-3 concrete next steps to help them achieve their business objectives.` :
+    If you're asked to summarize the conversation:
+    1. Provide a concise summary focusing on key points
+    2. Extract specific insights and action items
+    3. Use the log_conversation_summary tool to record this information` :
     'You are an AI CEO assistant. Please ask the user to configure their business details first.';
 
   const response = await anthropic.messages.create({
@@ -146,7 +216,7 @@ export async function processAIMessage(userId: number, userMessage: string, busi
 
   let finalResponse = messageContent.text;
 
-  // Check for tool invocations using simple string match
+  // Check for tool invocations
   const matches = finalResponse.match(/<tool>([^<]+)<\/tool>\s*<parameters>([^<]+)<\/parameters>/gm);
 
   if (matches) {
@@ -173,6 +243,12 @@ export async function processAIMessage(userId: number, userMessage: string, busi
         finalResponse = finalResponse.replace(
           match, 
           `✓ Updated ${info.section} information: ${parameters.reason}`
+        );
+      } else if (toolName === "log_conversation_summary") {
+        await logConversationSummary(userId, parameters);
+        finalResponse = finalResponse.replace(
+          match,
+          `✓ Conversation summarized and logged. Starting fresh conversation.`
         );
       }
     }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DndContext, DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,21 @@ export default function Tasks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { createIssue } = useGitHub();
+
+  // Configure DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    })
+  );
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks"]
@@ -141,7 +156,10 @@ export default function Tasks() {
         </Dialog>
       </div>
 
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext 
+        sensors={sensors}
+        onDragEnd={handleDragEnd}
+      >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <DroppableColumn
             id="todo"
