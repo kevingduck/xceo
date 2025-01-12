@@ -5,7 +5,7 @@ import { db } from "@db";
 import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { processAIMessage } from "./services/ai";
+import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -281,6 +281,83 @@ Culture & Values:
     } catch (error) {
       console.error("Error configuring CEO:", error);
       res.status(500).send("Failed to configure CEO");
+    }
+  });
+
+  // Get field templates
+  app.get("/api/business-info/templates", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+    res.json(businessSections);
+  });
+
+  // Update specific fields
+  app.patch("/api/business-info/:id/fields", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const infoId = parseInt(req.params.id);
+      if (isNaN(infoId)) {
+        return res.status(400).send("Invalid business info ID");
+      }
+
+      const [existingInfo] = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.id, infoId))
+        .limit(1);
+
+      if (!existingInfo) {
+        return res.status(404).send("Business info not found");
+      }
+      if (existingInfo.userId !== req.user.id) {
+        return res.status(403).send("Unauthorized");
+      }
+
+      // Get current fields or initialize if none exist
+      const currentFields = existingInfo.fields || {};
+
+      // Update only the specified fields
+      const updatedFields = {
+        ...currentFields,
+        ...Object.entries(req.body).reduce((acc, [key, value]) => ({
+          ...acc,
+          [key]: {
+            ...currentFields[key],
+            ...value,
+            updatedAt: new Date().toISOString(),
+            updatedBy: 'user',
+          }
+        }), {})
+      };
+
+      // Save to history first
+      await db.insert(businessInfoHistory).values({
+        businessInfoId: infoId,
+        userId: req.user.id,
+        content: existingInfo.content,
+        fields: existingInfo.fields,
+        updatedBy: 'user',
+        metadata: { source: 'field-update' }
+      });
+
+      // Update the business info
+      const [updatedInfo] = await db
+        .update(businessInfo)
+        .set({
+          fields: updatedFields,
+          updatedAt: new Date()
+        })
+        .where(eq(businessInfo.id, infoId))
+        .returning();
+
+      res.json(updatedInfo);
+    } catch (error) {
+      console.error("Error updating business info fields:", error);
+      res.status(500).send("Failed to update business info fields");
     }
   });
 
