@@ -221,6 +221,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/business-info", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      console.log("Creating new business info:", req.body);
+      const { section, title, content } = req.body;
+
+      if (!section || !title || !content) {
+        return res.status(400).send("Missing required fields");
+      }
+
+      const [newInfo] = await db.insert(businessInfo)
+        .values({
+          userId: req.user.id,
+          section,
+          title,
+          content,
+          metadata: {},
+        })
+        .returning();
+
+      console.log("Created new business info:", newInfo);
+      res.json(newInfo);
+    } catch (error) {
+      console.error("Error creating business info:", error);
+      res.status(500).send("Failed to create business information");
+    }
+  });
+
   app.get("/api/business-info/history/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 

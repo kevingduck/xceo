@@ -28,7 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
 
-const sections = [
+interface Section {
+  id: string;
+  title: string;
+  description: string;
+}
+
+const sections: Section[] = [
   {
     id: "overview",
     title: "Business Overview",
@@ -57,7 +63,7 @@ const sections = [
 ];
 
 const getSectionFromTitle = (title: string): string => {
-  const section = sections.find(s => 
+  const section = sections.find(s =>
     s.title.toLowerCase() === title.toLowerCase() ||
     s.id.toLowerCase() === title.toLowerCase().replace(/\s+/g, '')
   );
@@ -80,10 +86,7 @@ export default function BusinessPage() {
   const queryClient = useQueryClient();
 
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
-    queryKey: ["/api/business-info"],
-    onSuccess: (data) => {
-      console.log("Fetched business info:", data);
-    }
+    queryKey: ["/api/business-info"]
   });
 
   const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
@@ -123,22 +126,69 @@ export default function BusinessPage() {
     }
   });
 
-  const handleEdit = (info: BusinessInfo) => {
+  const createBusinessInfo = useMutation({
+    mutationFn: async ({ section, title, content }: { section: string; title: string; content: string }) => {
+      const response = await fetch("/api/business-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section, title, content }),
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      setIsEditing(false);
+      toast({
+        title: "Created",
+        description: "New business information section has been created"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleEdit = () => {
+    // Find current section data
+    const currentSection = sections.find(s => s.id === activeSection);
+    if (!currentSection) return;
+
+    const info = businessInfo.find(info => 
+      getSectionFromTitle(info.section) === activeSection
+    );
+
     console.log("Editing business info:", info);
-    setSelectedInfo(info);
-    setEditedContent(info.content);
+    setSelectedInfo(info || null);
+    setEditedContent(info?.content || "");
     setIsEditing(true);
   };
 
   const handleSave = () => {
-    if (!selectedInfo) {
-      console.error("No selected info to update");
-      return;
+    const currentSection = sections.find(s => s.id === activeSection);
+    if (!currentSection) return;
+
+    if (selectedInfo) {
+      updateBusinessInfo.mutate({
+        id: selectedInfo.id,
+        content: editedContent
+      });
+    } else {
+      createBusinessInfo.mutate({
+        section: currentSection.title,
+        title: currentSection.title,
+        content: editedContent
+      });
     }
-    updateBusinessInfo.mutate({
-      id: selectedInfo.id,
-      content: editedContent
-    });
   };
 
   // Find business info for current section
@@ -201,17 +251,7 @@ export default function BusinessPage() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => {
-                      if (currentSectionData) {
-                        handleEdit(currentSectionData);
-                      } else {
-                        toast({
-                          title: "Error",
-                          description: "No business information found for this section",
-                          variant: "destructive"
-                        });
-                      }
-                    }}
+                    onClick={handleEdit}
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
                     {currentSectionData ? "Edit" : "Add Information"}
@@ -234,9 +274,9 @@ export default function BusinessPage() {
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Information</DialogTitle>
+            <DialogTitle>{selectedInfo ? "Edit" : "Add"} Information</DialogTitle>
             <DialogDescription>
-              Update the content for {getTitleFromSection(activeSection)}
+              {selectedInfo ? "Update" : "Add"} content for {getTitleFromSection(activeSection)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -244,7 +284,7 @@ export default function BusinessPage() {
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               className="min-h-[300px]"
-              placeholder="Enter information here..."
+              placeholder={`Enter ${getTitleFromSection(activeSection)} information here...`}
             />
           </div>
           <DialogFooter>
@@ -253,9 +293,9 @@ export default function BusinessPage() {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={updateBusinessInfo.isPending}
+              disabled={updateBusinessInfo.isPending || createBusinessInfo.isPending}
             >
-              {updateBusinessInfo.isPending ? (
+              {updateBusinessInfo.isPending || createBusinessInfo.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
