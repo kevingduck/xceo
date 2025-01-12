@@ -63,6 +63,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log("Attempting login for user:", username);
         const [user] = await db
           .select()
           .from(users)
@@ -70,14 +71,18 @@ export function setupAuth(app: Express) {
           .limit(1);
 
         if (!user) {
+          console.log("User not found:", username);
           return done(null, false, { message: "Incorrect username." });
         }
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
+          console.log("Password mismatch for user:", username);
           return done(null, false, { message: "Incorrect password." });
         }
+        console.log("Login successful for user:", username);
         return done(null, user);
       } catch (err) {
+        console.error("Login error:", err);
         return done(err);
       }
     })
@@ -134,6 +139,8 @@ export function setupAuth(app: Express) {
           password: hashedPassword
         })
         .returning();
+
+      console.log("User registered successfully:", username);
 
       // Log the user in after registration
       req.login(newUser, (err) => {
