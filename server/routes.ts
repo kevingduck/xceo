@@ -414,7 +414,7 @@ Culture & Values:
       const businessContext = user.businessName ? {
         name: user.businessName,
         description: user.businessDescription || '',
-        objectives: user.businessObjectives as string[],
+        objectives: user.businessObjectives || [],
         recentMessages: recentMessages
           .filter(msg => msg.id !== userMessage.id) // Exclude current message
           .reverse()
