@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useShepherdTour } from "./shepherd-provider";
-import type Shepherd from "shepherd.js";
+import Shepherd from "shepherd.js";
 
 interface TourProps {
   isFirstVisit?: boolean;
@@ -11,9 +11,10 @@ const steps: Shepherd.Step.StepOptions[] = [
   {
     id: "welcome",
     attachTo: {
-      element: ".business-header",
-      on: "bottom"
+      element: "body",
+      on: "center"
     },
+    classes: 'shepherd-theme-custom',
     buttons: [
       {
         action() {
@@ -26,18 +27,17 @@ const steps: Shepherd.Step.StepOptions[] = [
         action() {
           return this.next();
         },
-        text: 'Get Started'
+        text: 'Start Tour'
       }
     ],
-    classes: 'shepherd-theme-custom',
-    title: "Welcome to Business Management",
-    text: "Let's take a quick tour of how to manage your business information effectively."
+    title: "Welcome to AI CEO",
+    text: "Let's take a quick tour of your AI-powered business management platform."
   },
   {
-    id: "sections",
+    id: "dashboard",
     attachTo: {
-      element: "[role='tablist']",
-      on: "bottom"
+      element: "[href='/']",
+      on: "right"
     },
     buttons: [
       {
@@ -53,14 +53,14 @@ const steps: Shepherd.Step.StepOptions[] = [
         text: 'Next'
       }
     ],
-    title: "Business Sections",
-    text: "Navigate between different aspects of your business using these tabs. Each section contains specific information and metrics."
+    title: "Dashboard",
+    text: "Your central command center. Get a quick overview of your business metrics, recent updates, and important tasks."
   },
   {
-    id: "content",
+    id: "business",
     attachTo: {
-      element: ".section-content",
-      on: "bottom"
+      element: "[href='/business']",
+      on: "right"
     },
     buttons: [
       {
@@ -76,14 +76,14 @@ const steps: Shepherd.Step.StepOptions[] = [
         text: 'Next'
       }
     ],
-    title: "Section Content",
-    text: "Add or edit detailed information about this aspect of your business. Use the edit button to make changes."
+    title: "Business Overview",
+    text: "Manage and track your business information across different areas. Review metrics and make strategic decisions."
   },
   {
-    id: "fields",
+    id: "tasks",
     attachTo: {
-      element: ".fields-section",
-      on: "top"
+      element: "[href='/tasks']",
+      on: "right"
     },
     buttons: [
       {
@@ -99,14 +99,14 @@ const steps: Shepherd.Step.StepOptions[] = [
         text: 'Next'
       }
     ],
-    title: "Structured Fields",
-    text: "Track specific metrics and data points in a structured format. Click the edit icon to update individual fields."
+    title: "Tasks",
+    text: "Track and manage your business tasks. Organize priorities and monitor progress."
   },
   {
-    id: "history",
+    id: "chat",
     attachTo: {
-      element: ".history-button",
-      on: "bottom"
+      element: "[href='/chat']",
+      on: "right"
     },
     buttons: [
       {
@@ -122,8 +122,8 @@ const steps: Shepherd.Step.StepOptions[] = [
         text: 'Finish'
       }
     ],
-    title: "Change History",
-    text: "View the history of changes made to your business information, including AI-suggested updates."
+    title: "AI Chat",
+    text: "Get instant AI-powered business insights and support. Ask questions and receive strategic guidance."
   }
 ];
 
@@ -141,11 +141,13 @@ export function BusinessTour({ isFirstVisit = true, onComplete }: TourProps) {
 
     try {
       // Remove any existing steps
-      tour.steps.forEach(() => tour.removeStep(tour.steps[0]));
+      while (tour.steps.length > 0) {
+        tour.removeStep(tour.steps[0]);
+      }
 
       // Add steps to the tour
-      steps.forEach(step => {
-        tour?.addStep(step);
+      steps.forEach((step: Shepherd.Step.StepOptions) => {
+        tour.addStep(step);
       });
 
       // Handle tour completion
