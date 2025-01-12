@@ -26,7 +26,20 @@ export function ShepherdProvider({ children }: ShepherdProviderProps) {
           enabled: true
         },
         classes: 'shepherd-theme-custom',
-        scrollTo: { behavior: 'smooth', block: 'center' }
+        scrollTo: { behavior: 'smooth', block: 'center' },
+        highlightClass: 'shepherd-highlight',
+        modalOverlayOpeningPadding: 8,
+        modalOverlayOpeningRadius: 4,
+        popperOptions: {
+          modifiers: [
+            {
+              name: 'offset',
+              options: {
+                offset: [0, 16]
+              }
+            }
+          ]
+        }
       },
       useModalOverlay: true
     });

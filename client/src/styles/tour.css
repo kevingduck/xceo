@@ -5,6 +5,7 @@
   --shepherd-border: hsl(var(--border));
   --shepherd-button-primary-bg: hsl(var(--primary));
   --shepherd-button-primary-text: hsl(var(--primary-foreground));
+  --shepherd-transition-duration: 300ms;
 }
 
 .shepherd-element {
@@ -14,12 +15,47 @@
   background: var(--shepherd-bg);
   color: var(--shepherd-text);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity var(--shepherd-transition-duration) ease-out,
+              transform var(--shepherd-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.shepherd-element[data-popper-placement^='top'] {
+  transform-origin: bottom;
+}
+
+.shepherd-element[data-popper-placement^='bottom'] {
+  transform-origin: top;
+}
+
+.shepherd-element[data-popper-placement^='left'] {
+  transform-origin: right;
+}
+
+.shepherd-element[data-popper-placement^='right'] {
+  transform-origin: left;
+}
+
+.shepherd-element.shepherd-enabled {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .shepherd-text {
   padding: 1rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: shepherd-text-enter 0.3s ease-out forwards 0.2s;
+}
+
+@keyframes shepherd-text-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .shepherd-header {
@@ -30,10 +66,30 @@
 .shepherd-title {
   font-size: 1rem;
   font-weight: 600;
+  opacity: 0;
+  transform: translateY(-8px);
+  animation: shepherd-title-enter 0.3s ease-out forwards;
+}
+
+@keyframes shepherd-title-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .shepherd-footer {
   padding: 0 1rem 1rem;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: shepherd-footer-enter 0.3s ease-out forwards 0.3s;
+}
+
+@keyframes shepherd-footer-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .shepherd-button {
@@ -47,10 +103,13 @@
 .shepherd-button-primary {
   background: var(--shepherd-button-primary-bg);
   color: var(--shepherd-button-primary-text);
+  transform: scale(1);
+  transition: transform 0.2s ease;
 }
 
 .shepherd-button-primary:hover {
   opacity: 0.9;
+  transform: scale(1.05);
 }
 
 .shepherd-button-secondary {
@@ -64,6 +123,14 @@
 
 .shepherd-arrow {
   border-width: 8px;
+  opacity: 0;
+  animation: shepherd-arrow-enter 0.3s ease-out forwards 0.2s;
+}
+
+@keyframes shepherd-arrow-enter {
+  to {
+    opacity: 1;
+  }
 }
 
 .shepherd-arrow::before {
@@ -72,4 +139,40 @@
 
 .shepherd-has-title .shepherd-content .shepherd-header {
   background: transparent;
+}
+
+/* Highlight target elements */
+.shepherd-target {
+  position: relative;
+}
+
+.shepherd-target::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--radius) + 4px);
+  background: hsl(var(--primary) / 0.1);
+  border: 2px solid hsl(var(--primary) / 0.2);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity var(--shepherd-transition-duration) ease-out,
+              transform var(--shepherd-transition-duration) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.shepherd-highlight .shepherd-target::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Modal overlay animation */
+.shepherd-modal-overlay-container {
+  opacity: 0;
+  transition: opacity var(--shepherd-transition-duration) ease-out;
+  background: rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.shepherd-modal-overlay-container.shepherd-modal-is-visible {
+  opacity: 1;
 }
