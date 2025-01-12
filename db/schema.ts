@@ -7,6 +7,9 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
   githubToken: text("github_token"),
+  businessName: text("business_name"),
+  businessDescription: text("business_description"),
+  businessObjectives: jsonb("business_objectives"),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 

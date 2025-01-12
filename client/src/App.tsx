@@ -6,6 +6,7 @@ import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 
 import AuthPage from "@/pages/auth-page";
+import ConfigureCEO from "@/pages/configure-ceo";
 import Dashboard from "@/pages/dashboard";
 import Chat from "@/pages/chat";
 import Tasks from "@/pages/tasks";
@@ -26,6 +27,11 @@ function Router() {
 
   if (!user) {
     return <AuthPage />;
+  }
+
+  // Show configuration page if business details aren't set
+  if (!user.businessName) {
+    return <ConfigureCEO />;
   }
 
   return (

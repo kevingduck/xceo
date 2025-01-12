@@ -3,16 +3,56 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics } from "@db/schema";
+import { tasks, chatMessages, analytics, users } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+
+const configureCEOSchema = z.object({
+  businessName: z.string().min(1, "Business name is required"),
+  businessDescription: z.string().min(1, "Business description is required"),
+  objectives: z.array(z.string()).min(1, "At least one objective is required")
+});
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
-  
+
+  // Configure CEO endpoint
+  app.post("/api/configure-ceo", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const result = configureCEOSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const { businessName, businessDescription, objectives } = result.data;
+
+      await db
+        .update(users)
+        .set({
+          businessName,
+          businessDescription,
+          businessObjectives: objectives
+        })
+        .where(eq(users.id, req.user.id))
+        .returning();
+
+      res.json({ message: "CEO configured successfully" });
+    } catch (error) {
+      console.error("Error configuring CEO:", error);
+      res.status(500).send("Failed to configure CEO");
+    }
+  });
+
   // Tasks API
   app.get("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     const userTasks = await db.query.tasks.findMany({
       where: eq(tasks.userId, req.user.id),
       orderBy: (tasks, { desc }) => [desc(tasks.createdAt)]
@@ -22,7 +62,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     const task = await db.insert(tasks)
       .values({
         ...req.body,
@@ -35,7 +75,7 @@ export function registerRoutes(app: Express): Server {
   // Chat API
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     const messages = await db.query.chatMessages.findMany({
       where: eq(chatMessages.userId, req.user.id),
       orderBy: (messages, { asc }) => [asc(messages.createdAt)]
@@ -45,7 +85,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     const message = await db.insert(chatMessages)
       .values({
         ...req.body,
@@ -58,7 +98,7 @@ export function registerRoutes(app: Express): Server {
   // Analytics API
   app.get("/api/analytics", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     const userAnalytics = await db.query.analytics.findMany({
       where: eq(analytics.userId, req.user.id)
     });
