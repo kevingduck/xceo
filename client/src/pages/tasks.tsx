@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { TaskCard } from "@/components/widgets/task-card";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
@@ -16,19 +17,21 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { SortableTask } from "@/components/widgets/sortable-task";
+import { DroppableColumn } from "@/components/widgets/droppable-column";
 
 const columns = ["todo", "inProgress", "completed"] as const;
 type ColumnId = typeof columns[number];
 
+const columnTitles: Record<ColumnId, string> = {
+  todo: "To Do",
+  inProgress: "In Progress",
+  completed: "Completed"
+};
+
 export default function Tasks() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [activeId, setActiveId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { createIssue } = useGitHub();
 
@@ -99,20 +102,20 @@ export default function Tasks() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
     if (!over) return;
 
     const activeTaskId = parseInt(active.id.toString());
-    const activeTask = tasks.find(t => t.id === activeTaskId);
     const overId = over.id.toString() as ColumnId;
 
     if (
-      activeTask &&
+      activeTaskId &&
       columns.includes(overId) &&
-      activeTask.status !== overId
+      tasks.find(t => t.id === activeTaskId)?.status !== overId
     ) {
       updateTask.mutate({
-        id: activeTask.id,
+        id: activeTaskId,
         status: overId
       });
     }
@@ -121,6 +124,8 @@ export default function Tasks() {
   const todoTasks = tasks.filter(t => t.status === "todo");
   const inProgressTasks = tasks.filter(t => t.status === "inProgress");
   const completedTasks = tasks.filter(t => t.status === "completed");
+
+  const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
 
   return (
     <div className="space-y-4">
@@ -149,7 +154,14 @@ export default function Tasks() {
                 onChange={(e) => setDescription(e.target.value)}
               />
               <Button type="submit" disabled={createTask.isPending}>
-                Create Task
+                {createTask.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Task"
+                )}
               </Button>
             </form>
           </DialogContent>
@@ -159,60 +171,34 @@ export default function Tasks() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={({ active }) => setActiveId(parseInt(active.id.toString()))}
         onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveId(null)}
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div 
-            className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            id="todo"
-          >
-            <h3 className="font-semibold">To Do</h3>
-            <SortableContext
-              items={todoTasks.map(t => t.id.toString())}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {todoTasks.map(task => (
-                  <SortableTask key={task.id} task={task} />
-                ))}
-              </div>
-            </SortableContext>
-          </div>
-
-          <div 
-            className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            id="inProgress"
-          >
-            <h3 className="font-semibold">In Progress</h3>
-            <SortableContext
-              items={inProgressTasks.map(t => t.id.toString())}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {inProgressTasks.map(task => (
-                  <SortableTask key={task.id} task={task} />
-                ))}
-              </div>
-            </SortableContext>
-          </div>
-
-          <div 
-            className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            id="completed"
-          >
-            <h3 className="font-semibold">Completed</h3>
-            <SortableContext
-              items={completedTasks.map(t => t.id.toString())}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {completedTasks.map(task => (
-                  <SortableTask key={task.id} task={task} />
-                ))}
-              </div>
-            </SortableContext>
-          </div>
+          {(Object.keys(columnTitles) as ColumnId[]).map((id) => (
+            <DroppableColumn
+              key={id}
+              id={id}
+              title={columnTitles[id]}
+              tasks={
+                id === "todo"
+                  ? todoTasks
+                  : id === "inProgress"
+                  ? inProgressTasks
+                  : completedTasks
+              }
+            />
+          ))}
         </div>
+
+        <DragOverlay>
+          {activeTask ? (
+            <div className="opacity-50">
+              <TaskCard task={activeTask} />
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </div>
   );
