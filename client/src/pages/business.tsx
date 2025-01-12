@@ -28,13 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
 
-type Section = {
-  id: string;
-  title: string;
-  description: string;
-};
-
-const sections: Section[] = [
+const sections = [
   {
     id: "overview",
     title: "Business Overview",
@@ -62,9 +56,17 @@ const sections: Section[] = [
   }
 ];
 
-const normalizeSection = (section: string): string => {
-  // Remove spaces and convert to lowercase
-  return section.replace(/\s+/g, '').toLowerCase();
+const getSectionFromTitle = (title: string): string => {
+  const section = sections.find(s => 
+    s.title.toLowerCase() === title.toLowerCase() ||
+    s.id.toLowerCase() === title.toLowerCase().replace(/\s+/g, '')
+  );
+  return section?.id || title.toLowerCase().replace(/\s+/g, '');
+};
+
+const getTitleFromSection = (sectionId: string): string => {
+  const section = sections.find(s => s.id === sectionId);
+  return section?.title || sectionId;
 };
 
 export default function BusinessPage() {
@@ -81,9 +83,6 @@ export default function BusinessPage() {
     queryKey: ["/api/business-info"],
     onSuccess: (data) => {
       console.log("Fetched business info:", data);
-    },
-    onError: (error) => {
-      console.error("Failed to fetch business info:", error);
     }
   });
 
@@ -132,21 +131,25 @@ export default function BusinessPage() {
   };
 
   const handleSave = () => {
-    if (selectedInfo) {
-      updateBusinessInfo.mutate({
-        id: selectedInfo.id,
-        content: editedContent
-      });
+    if (!selectedInfo) {
+      console.error("No selected info to update");
+      return;
     }
+    updateBusinessInfo.mutate({
+      id: selectedInfo.id,
+      content: editedContent
+    });
   };
 
-  // Find the current section's data by normalizing section names for comparison
-  const currentSectionData = businessInfo?.find(info => 
-    normalizeSection(info.section) === normalizeSection(activeSection)
-  );
+  // Find business info for current section
+  const currentSectionData = businessInfo.find(info => {
+    const infoSection = getSectionFromTitle(info.section);
+    console.log(`Comparing section ${infoSection} with active ${activeSection}`);
+    return infoSection === activeSection;
+  });
 
   console.log("Active section:", activeSection);
-  console.log("All business info:", businessInfo);
+  console.log("Business info data:", businessInfo);
   console.log("Current section data:", currentSectionData);
 
   if (isBusinessLoading) {
@@ -231,11 +234,9 @@ export default function BusinessPage() {
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {currentSectionData ? "Edit" : "Add"} Information
-            </DialogTitle>
+            <DialogTitle>Edit Information</DialogTitle>
             <DialogDescription>
-              Update the content for this section
+              Update the content for {getTitleFromSection(activeSection)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
