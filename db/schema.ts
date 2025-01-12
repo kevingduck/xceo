@@ -1,6 +1,6 @@
 import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { relations, type InferModel } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -9,8 +9,30 @@ export const users = pgTable("users", {
   githubToken: text("github_token"),
   businessName: text("business_name"),
   businessDescription: text("business_description"),
-  businessObjectives: jsonb("business_objectives"),
+  businessObjectives: jsonb("business_objectives").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull()
+});
+
+export const businessInfo = pgTable("business_info", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  section: text("section").notNull(), // e.g., "finance", "market", "humanCapital"
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const businessInfoHistory = pgTable("business_info_history", {
+  id: serial("id").primaryKey(),
+  businessInfoId: integer("business_info_id").references(() => businessInfo.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedBy: text("updated_by").notNull(), // "user" or "ai"
+  reason: text("reason") // AI's reason for update if applicable
 });
 
 export const tasks = pgTable("tasks", {
@@ -29,7 +51,7 @@ export const chatMessages = pgTable("chat_messages", {
   content: text("content").notNull(),
   role: text("role").notNull(), // 'user' or 'assistant'
   userId: integer("user_id").references(() => users.id).notNull(),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 
@@ -37,24 +59,44 @@ export const analytics = pgTable("analytics", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   type: text("type").notNull(),
-  data: jsonb("data").notNull(),
+  data: jsonb("data").$type<Record<string, any>>().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 
-export const userRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
   chatMessages: many(chatMessages),
-  analytics: many(analytics)
+  analytics: many(analytics),
+  businessInfo: many(businessInfo)
 }));
 
-export const taskRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one }) => ({
   user: one(users, {
     fields: [tasks.userId],
     references: [users.id]
   })
 }));
 
-export const chatMessageRelations = relations(chatMessages, ({ one }) => ({
+export const businessInfoRelations = relations(businessInfo, ({ one, many }) => ({
+  user: one(users, {
+    fields: [businessInfo.userId],
+    references: [users.id]
+  }),
+  history: many(businessInfoHistory)
+}));
+
+export const businessInfoHistoryRelations = relations(businessInfoHistory, ({ one }) => ({
+  businessInfo: one(businessInfo, {
+    fields: [businessInfoHistory.businessInfoId],
+    references: [businessInfo.id]
+  }),
+  user: one(users, {
+    fields: [businessInfoHistory.userId],
+    references: [users.id]
+  })
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
   user: one(users, {
     fields: [chatMessages.userId],
     references: [users.id]
@@ -70,9 +112,13 @@ export const analyticsRelations = relations(analytics, ({ one }) => ({
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
+export const insertBusinessInfoSchema = createInsertSchema(businessInfo);
+export const selectBusinessInfoSchema = createSelectSchema(businessInfo);
 
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type Analytics = typeof analytics.$inferSelect;
+export type BusinessInfo = typeof businessInfo.$inferSelect;
+export type BusinessInfoHistory = typeof businessInfoHistory.$inferSelect;

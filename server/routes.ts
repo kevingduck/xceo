@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users } from "@db/schema";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
@@ -13,6 +13,13 @@ const taskSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["todo", "inProgress", "completed"]).default("todo")
 });
+
+const configureCEOSchema = z.object({
+  businessName: z.string().min(1, "Business name is required"),
+  businessDescription: z.string().min(1, "Business description is required"),
+  objectives: z.array(z.string()).min(1, "At least one objective is required")
+});
+
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -156,6 +163,93 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Business Info API
+  app.get("/api/business-info", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const userBusinessInfo = await db.query.businessInfo.findMany({
+        where: eq(businessInfo.userId, req.user.id),
+        orderBy: (info, { desc }) => [desc(info.updatedAt)]
+      });
+      res.json(userBusinessInfo);
+    } catch (error) {
+      console.error("Error fetching business info:", error);
+      res.status(500).send("Failed to fetch business information");
+    }
+  });
+
+  app.get("/api/business-info/history/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const infoId = parseInt(req.params.id);
+      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
+
+      const [info] = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.id, infoId))
+        .limit(1);
+
+      if (!info) return res.status(404).send("Business info not found");
+      if (info.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const history = await db.query.businessInfoHistory.findMany({
+        where: eq(businessInfoHistory.businessInfoId, infoId),
+        orderBy: (history, { desc }) => [desc(history.updatedAt)],
+        limit: 10
+      });
+
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching history:", error);
+      res.status(500).send("Failed to fetch history");
+    }
+  });
+
+  app.patch("/api/business-info/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const infoId = parseInt(req.params.id);
+      if (isNaN(infoId)) return res.status(400).send("Invalid ID");
+
+      const [existingInfo] = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.id, infoId))
+        .limit(1);
+
+      if (!existingInfo) return res.status(404).send("Business info not found");
+      if (existingInfo.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      // Save the previous version to history
+      await db.insert(businessInfoHistory).values({
+        businessInfoId: infoId,
+        userId: req.user.id,
+        content: existingInfo.content,
+        metadata: existingInfo.metadata,
+        updatedBy: "user",
+      });
+
+      // Update the business info
+      const [updatedInfo] = await db
+        .update(businessInfo)
+        .set({
+          content: req.body.content,
+          updatedAt: new Date()
+        })
+        .where(eq(businessInfo.id, infoId))
+        .returning();
+
+      res.json(updatedInfo);
+    } catch (error) {
+      console.error("Error updating business info:", error);
+      res.status(500).send("Failed to update business information");
+    }
+  });
+
   // Chat API
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
@@ -231,9 +325,3 @@ export function registerRoutes(app: Express): Server {
 
   return httpServer;
 }
-
-const configureCEOSchema = z.object({
-  businessName: z.string().min(1, "Business name is required"),
-  businessDescription: z.string().min(1, "Business description is required"),
-  objectives: z.array(z.string()).min(1, "At least one objective is required")
-});

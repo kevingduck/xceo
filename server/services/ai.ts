@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, type Task } from '@db/schema';
+import { tasks, businessInfo, businessInfoHistory, type Task, type BusinessInfo } from '@db/schema';
+import { eq, and } from 'drizzle-orm';
 
 // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
 const anthropic = new Anthropic({
@@ -22,6 +23,15 @@ const availableTools: ToolFunction[] = [
       description: "string",
       status: "string"
     }
+  },
+  {
+    name: "update_business_info",
+    description: "Update a section of business information",
+    parameters: {
+      section: "string", // e.g., 'finance', 'market', 'humanCapital'
+      content: "string", // the new content
+      reason: "string" // why this update is being made
+    }
   }
 ];
 
@@ -35,8 +45,59 @@ async function createTask(userId: number, params: any): Promise<Task> {
       status: params.status || "todo"
     })
     .returning();
-  
+
   return task;
+}
+
+async function updateBusinessInfo(userId: number, params: any): Promise<BusinessInfo> {
+  // Find existing info for this section
+  const [existingInfo] = await db
+    .select()
+    .from(businessInfo)
+    .where(
+      and(
+        eq(businessInfo.userId, userId),
+        eq(businessInfo.section, params.section)
+      )
+    );
+
+  if (existingInfo) {
+    // Save to history first
+    await db.insert(businessInfoHistory).values({
+      businessInfoId: existingInfo.id,
+      userId,
+      content: existingInfo.content,
+      metadata: existingInfo.metadata,
+      updatedBy: "ai",
+      reason: params.reason
+    });
+
+    // Update existing info
+    const [updatedInfo] = await db
+      .update(businessInfo)
+      .set({
+        content: params.content,
+        updatedAt: new Date()
+      })
+      .where(eq(businessInfo.id, existingInfo.id))
+      .returning();
+
+    return updatedInfo;
+  } else {
+    // Create new info
+    const [newInfo] = await db
+      .insert(businessInfo)
+      .values({
+        userId,
+        section: params.section,
+        title: params.section.charAt(0).toUpperCase() + params.section.slice(1),
+        content: params.content,
+        metadata: {}
+      })
+      .returning();
+
+    return newInfo;
+  }
 }
 
 export async function processAIMessage(userId: number, userMessage: string, businessContext?: {
@@ -48,18 +109,25 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     `You are an AI CEO assistant for ${businessContext.name}. Business Description: ${businessContext.description}. Key Objectives: ${businessContext.objectives.join(", ")}.
     You have access to the following tools that you can use to help manage the business:
     ${JSON.stringify(availableTools, null, 2)}
-    
+
     When you want to use a tool, format your response like this:
-    <tool>create_task</tool>
+    <tool>tool_name</tool>
     <parameters>
     {
-      "title": "Example Task",
-      "description": "This is a task description",
-      "status": "todo"
+      "parameter1": "value1",
+      "parameter2": "value2"
     }
     </parameters>
-    
+
     You can use multiple tools in one response. Always explain what you're doing before using tools.
+    For example, if you notice that market conditions have changed significantly based on the conversation,
+    use the update_business_info tool to update the market intelligence section.
+
+    When updating business information:
+    1. Be specific and detailed in the content
+    2. Clearly explain why you're making the update in the reason parameter
+    3. Keep historical context in mind
+
     For your first message, welcome the user and suggest 2-3 concrete next steps to help them achieve their business objectives.` :
     'You are an AI CEO assistant. Please ask the user to configure their business details first.';
 
@@ -70,17 +138,42 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     max_tokens: 1024,
   });
 
-  let finalResponse = response.content[0].text;
-  const toolMatches = finalResponse.match(/<tool>(.*?)<\/tool>\s*<parameters>(.*?)<\/parameters>/gs);
+  // Ensure we have a text response
+  const messageContent = response.content[0];
+  if (messageContent.type !== 'text') {
+    return "I apologize, but I can only process text responses at the moment.";
+  }
 
-  if (toolMatches) {
-    for (const match of toolMatches) {
-      const toolName = match.match(/<tool>(.*?)<\/tool>/)?.[1];
-      const parameters = JSON.parse(match.match(/<parameters>(.*?)<\/parameters>/s)?.[1] || "{}");
+  let finalResponse = messageContent.text;
+
+  // Check for tool invocations using simple string match
+  const matches = finalResponse.match(/<tool>([^<]+)<\/tool>\s*<parameters>([^<]+)<\/parameters>/gm);
+
+  if (matches) {
+    for (const match of matches) {
+      const toolMatch = match.match(/<tool>([^<]+)<\/tool>/);
+      const paramsMatch = match.match(/<parameters>([^<]+)<\/parameters>/);
+
+      if (!toolMatch || !paramsMatch) continue;
+
+      const toolName = toolMatch[1];
+      let parameters;
+      try {
+        parameters = JSON.parse(paramsMatch[1]);
+      } catch (e) {
+        console.error("Failed to parse tool parameters:", e);
+        continue;
+      }
 
       if (toolName === "create_task") {
         const task = await createTask(userId, parameters);
         finalResponse = finalResponse.replace(match, `✓ Created task: ${task.title}`);
+      } else if (toolName === "update_business_info") {
+        const info = await updateBusinessInfo(userId, parameters);
+        finalResponse = finalResponse.replace(
+          match, 
+          `✓ Updated ${info.section} information: ${parameters.reason}`
+        );
       }
     }
   }
