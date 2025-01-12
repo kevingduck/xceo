@@ -18,11 +18,9 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 border-b flex items-center justify-between px-4">
           <div className="font-semibold">Welcome, {user?.username}</div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => logout()}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={() => logout()}>
+            <LogOut className="h-4 w-4" />
+          </Button>
         </header>
 
         <main className="flex-1 overflow-auto p-4">

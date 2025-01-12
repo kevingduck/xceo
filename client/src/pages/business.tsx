@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BusinessTour } from "@/components/business-tour";
-import "@/styles/tour.css";
 import {
   Card,
   CardContent,
@@ -20,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, History, Edit2, Plus, PlayCircle } from "lucide-react";
+import { Loader2, History, Edit2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,20 +28,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
-
-// Bidirectional mapping between UI section IDs and database section names
-const sectionMappings: Record<string, string> = {
-  'overview': 'Business Overview',
-  'finance': 'Financial Overview',
-  'market': 'Market Intelligence',
-  'humanCapital': 'Human Capital',
-  'operations': 'Operations',
-  'Business Overview': 'overview',
-  'Financial Overview': 'finance',
-  'Market Intelligence': 'market',
-  'Human Capital': 'humanCapital',
-  'Operations': 'operations'
-};
 
 interface Section {
   id: string;
@@ -79,6 +63,20 @@ const sections: Section[] = [
   }
 ];
 
+// Bidirectional mapping between UI section IDs and database section names
+const sectionMappings: Record<string, string> = {
+  'overview': 'Business Overview',
+  'finance': 'Financial Overview', 
+  'market': 'Market Intelligence',
+  'humanCapital': 'Human Capital',
+  'operations': 'Operations',
+  'Business Overview': 'overview',
+  'Financial Overview': 'finance',
+  'Market Intelligence': 'market',
+  'Human Capital': 'humanCapital',
+  'Operations': 'operations'
+};
+
 interface BusinessField {
   name: string;
   type: 'text' | 'number' | 'currency' | 'percentage' | 'date' | 'list';
@@ -96,8 +94,8 @@ const getSectionFromTitle = (title: string): string => {
     return sectionMappings[title];
   }
 
-  const section = sections.find(s =>
-    s.title === title ||
+  const section = sections.find(s => 
+    s.title === title || 
     s.id === title.toLowerCase().replace(/\s+/g, '')
   );
 
@@ -115,9 +113,9 @@ const formatFieldValue = (value: any, type: string) => {
 
   switch (type) {
     case 'currency':
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
+      return new Intl.NumberFormat('en-US', { 
+        style: 'currency', 
+        currency: 'USD' 
       }).format(Number(value));
     case 'percentage':
       return `${value}%`;
@@ -131,13 +129,13 @@ const formatFieldValue = (value: any, type: string) => {
 };
 
 // Field Editor Component
-function FieldEditor({
-  field,
-  value,
-  onChange
-}: {
-  field: BusinessField;
-  value: any;
+function FieldEditor({ 
+  field, 
+  value, 
+  onChange 
+}: { 
+  field: BusinessField; 
+  value: any; 
   onChange: (value: any) => void;
 }) {
   switch (field.type) {
@@ -200,11 +198,6 @@ export default function BusinessPage() {
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [isFirstVisit, setIsFirstVisit] = useState(() => {
-    const hasCompletedTour = localStorage.getItem("businessTourCompleted");
-    return !hasCompletedTour;
-  });
-  const [isTourOpen, setIsTourOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -255,12 +248,12 @@ export default function BusinessPage() {
   });
 
   const updateBusinessFields = useMutation({
-    mutationFn: async ({
-      id,
-      fields
-    }: {
-      id: number;
-      fields: Record<string, any>;
+    mutationFn: async ({ 
+      id, 
+      fields 
+    }: { 
+      id: number; 
+      fields: Record<string, any>; 
     }) => {
       const response = await fetch(`/api/business-info/${id}/fields`, {
         method: "PATCH",
@@ -293,14 +286,14 @@ export default function BusinessPage() {
   });
 
   const createBusinessInfo = useMutation({
-    mutationFn: async ({
-      section,
-      title,
-      content
-    }: {
-      section: string;
-      title: string;
-      content: string;
+    mutationFn: async ({ 
+      section, 
+      title, 
+      content 
+    }: { 
+      section: string; 
+      title: string; 
+      content: string; 
     }) => {
       const response = await fetch("/api/business-info", {
         method: "POST",
@@ -387,17 +380,6 @@ export default function BusinessPage() {
   // Get template for current section
   const currentTemplate = templates.find(t => t.name === sectionMappings[activeSection]);
 
-  const handleTourComplete = () => {
-    localStorage.setItem("businessTourCompleted", "true");
-    setIsFirstVisit(false);
-  };
-
-  const startTour = () => {
-    setIsFirstVisit(true);
-    setIsTourOpen(true);
-  };
-
-
   if (isBusinessLoading || isTemplateLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
@@ -407,25 +389,12 @@ export default function BusinessPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <BusinessTour isFirstVisit={isFirstVisit || isTourOpen} onComplete={() => setIsTourOpen(false)} />
-
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Business Management</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage and track your business information across different areas
-          </p>
-        </div>
-        <Button 
-          variant="outline" 
-          onClick={startTour}
-          className="tour-trigger flex items-center gap-2"
-          size="sm"
-        >
-          <PlayCircle className="h-4 w-4" />
-          Start Tour
-        </Button>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Business Management</h1>
+        <p className="text-muted-foreground">
+          Manage and track your business information across different areas
+        </p>
       </div>
 
       <Tabs value={activeSection} onValueChange={setActiveSection}>
@@ -449,7 +418,6 @@ export default function BusinessPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="history-button"
                     onClick={() => {
                       setSelectedInfo(currentSectionData || null);
                       setShowHistory(true);
@@ -468,7 +436,7 @@ export default function BusinessPage() {
                   </Button>
                 </div>
 
-                <div className="section-content prose prose-sm max-w-none whitespace-pre-wrap">
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
                   {currentSectionData?.content || (
                     <p className="text-muted-foreground italic">
                       No information available yet. Click Add Information to get started.
@@ -478,7 +446,7 @@ export default function BusinessPage() {
 
                 {/* Fields Section */}
                 {currentTemplate && (
-                  <Card className="mt-6 fields-section">
+                  <Card className="mt-6">
                     <CardHeader>
                       <CardTitle className="text-lg">Fields</CardTitle>
                       <CardDescription>
@@ -492,7 +460,7 @@ export default function BusinessPage() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <label className="text-sm font-medium">
-                                  {field.name.split('_').map(word =>
+                                  {field.name.split('_').map(word => 
                                     word.charAt(0).toUpperCase() + word.slice(1)
                                   ).join(' ')}
                                 </label>
@@ -516,7 +484,7 @@ export default function BusinessPage() {
                                 <FieldEditor
                                   field={field}
                                   value={currentSectionData?.fields?.[field.name]?.value}
-                                  onChange={(value) =>
+                                  onChange={(value) => 
                                     handleFieldUpdate(currentSectionData.id, field.name, value)
                                   }
                                 />
