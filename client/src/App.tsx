@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
+import { FloatingChat } from "@/components/widgets/floating-chat";
 
 import AuthPage from "@/pages/auth-page";
 import ConfigureCEO from "@/pages/configure-ceo";
@@ -15,7 +16,7 @@ import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 
-function Router() {
+function ProtectedRoutes() {
   const { user, isLoading } = useUser();
 
   if (isLoading) {
@@ -45,6 +46,7 @@ function Router() {
         <Route path="/analytics" component={Analytics} />
         <Route component={NotFound} />
       </Switch>
+      <FloatingChat />
     </DashboardLayout>
   );
 }
@@ -52,7 +54,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
+      <ProtectedRoutes />
       <Toaster />
     </QueryClientProvider>
   );
