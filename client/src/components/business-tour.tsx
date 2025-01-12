@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useShepherdTour } from "./shepherd-provider";
 import Shepherd from "shepherd.js";
+import "../styles/tour.css";
 
 interface TourProps {
   isFirstVisit?: boolean;
@@ -27,6 +28,7 @@ const steps: Shepherd.Step.StepOptions[] = [
         action() {
           return this.next();
         },
+        classes: 'shepherd-button-primary',
         text: 'Start Tour'
       }
     ],
@@ -39,22 +41,25 @@ const steps: Shepherd.Step.StepOptions[] = [
       element: "[href='/']",
       on: "right"
     },
+    classes: 'shepherd-theme-custom',
     buttons: [
       {
         action() {
           return this.back();
         },
+        classes: 'shepherd-button-secondary',
         text: 'Back'
       },
       {
         action() {
           return this.next();
         },
+        classes: 'shepherd-button-primary',
         text: 'Next'
       }
     ],
     title: "Dashboard",
-    text: "Your central command center. Get a quick overview of your business metrics, recent updates, and important tasks."
+    text: "Your central command center for business metrics and updates."
   },
   {
     id: "business",
@@ -62,22 +67,25 @@ const steps: Shepherd.Step.StepOptions[] = [
       element: "[href='/business']",
       on: "right"
     },
+    classes: 'shepherd-theme-custom',
     buttons: [
       {
         action() {
           return this.back();
         },
+        classes: 'shepherd-button-secondary',
         text: 'Back'
       },
       {
         action() {
           return this.next();
         },
+        classes: 'shepherd-button-primary',
         text: 'Next'
       }
     ],
     title: "Business Overview",
-    text: "Manage and track your business information across different areas. Review metrics and make strategic decisions."
+    text: "Track and manage your business information here."
   },
   {
     id: "tasks",
@@ -85,22 +93,25 @@ const steps: Shepherd.Step.StepOptions[] = [
       element: "[href='/tasks']",
       on: "right"
     },
+    classes: 'shepherd-theme-custom',
     buttons: [
       {
         action() {
           return this.back();
         },
+        classes: 'shepherd-button-secondary',
         text: 'Back'
       },
       {
         action() {
           return this.next();
         },
+        classes: 'shepherd-button-primary',
         text: 'Next'
       }
     ],
     title: "Tasks",
-    text: "Track and manage your business tasks. Organize priorities and monitor progress."
+    text: "Organize and manage your business tasks."
   },
   {
     id: "chat",
@@ -108,22 +119,25 @@ const steps: Shepherd.Step.StepOptions[] = [
       element: "[href='/chat']",
       on: "right"
     },
+    classes: 'shepherd-theme-custom',
     buttons: [
       {
         action() {
           return this.back();
         },
+        classes: 'shepherd-button-secondary',
         text: 'Back'
       },
       {
         action() {
           return this.complete();
         },
+        classes: 'shepherd-button-primary',
         text: 'Finish'
       }
     ],
     title: "AI Chat",
-    text: "Get instant AI-powered business insights and support. Ask questions and receive strategic guidance."
+    text: "Get AI-powered business insights and support."
   }
 ];
 
@@ -134,7 +148,6 @@ export function BusinessTour({ isFirstVisit = true, onComplete }: TourProps) {
   useEffect(() => {
     if (!tour || hasShownTour) return;
 
-    // Only start tour if isFirstVisit is true
     if (!isFirstVisit) {
       return;
     }
@@ -146,7 +159,7 @@ export function BusinessTour({ isFirstVisit = true, onComplete }: TourProps) {
       }
 
       // Add steps to the tour
-      steps.forEach((step: Shepherd.Step.StepOptions) => {
+      steps.forEach((step) => {
         tour.addStep(step);
       });
 
@@ -164,7 +177,7 @@ export function BusinessTour({ isFirstVisit = true, onComplete }: TourProps) {
         onComplete?.();
       });
 
-      // Start the tour after a short delay to ensure elements are mounted
+      // Start the tour after elements are mounted
       setTimeout(() => {
         tour.start();
       }, 500);
