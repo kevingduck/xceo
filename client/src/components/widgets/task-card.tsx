@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, X, ChevronRight } from "lucide-react";
+import { Pencil, X, ChevronRight, Loader2 } from "lucide-react";
 import type { Task } from "@db/schema";
 
 interface TaskCardProps {
@@ -21,9 +22,9 @@ export function TaskCard({ task }: TaskCardProps) {
   const queryClient = useQueryClient();
 
   const statusColors = {
-    todo: "bg-yellow-500",
-    inProgress: "bg-blue-500",
-    completed: "bg-green-500"
+    todo: "bg-yellow-500/10 text-yellow-600",
+    inProgress: "bg-blue-500/10 text-blue-600",
+    completed: "bg-green-500/10 text-green-600"
   };
 
   const updateTask = useMutation({
@@ -35,7 +36,11 @@ export function TaskCard({ task }: TaskCardProps) {
         credentials: "include"
       });
 
-      if (!response.ok) throw new Error("Failed to update task");
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
       return response.json();
     },
     onSuccess: () => {
@@ -51,26 +56,30 @@ export function TaskCard({ task }: TaskCardProps) {
         credentials: "include"
       });
 
-      if (!response.ok) throw new Error("Failed to delete task");
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setIsDetailsOpen(false);
     }
   });
 
   const handleStatusChange = (newStatus: string) => {
-    updateTask.mutateAsync({ status: newStatus });
+    updateTask.mutate({ status: newStatus });
   };
 
   const handleSave = () => {
-    updateTask.mutateAsync({
+    updateTask.mutate({
       title: editedTitle,
       description: editedDescription
     });
   };
 
   return (
-    <>
+    <div>
       <Card className="hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
@@ -81,15 +90,16 @@ export function TaskCard({ task }: TaskCardProps) {
                 className="text-sm font-medium"
               />
             ) : (
-              <CardTitle 
-                className="text-sm font-medium cursor-pointer hover:text-primary"
+              <Button 
+                variant="ghost" 
+                className="p-0 h-auto font-medium text-left hover:bg-transparent"
                 onClick={() => setIsDetailsOpen(true)}
               >
                 {task.title}
-              </CardTitle>
+              </Button>
             )}
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className={statusColors[task.status as keyof typeof statusColors]}>
+              <Badge className={statusColors[task.status as keyof typeof statusColors]}>
                 {task.status}
               </Badge>
               <Button variant="ghost" size="icon" onClick={() => setIsEditing(!isEditing)}>
@@ -101,13 +111,14 @@ export function TaskCard({ task }: TaskCardProps) {
         {isEditing && (
           <CardContent>
             <div className="space-y-4">
-              <Input
+              <Textarea
                 value={editedDescription}
                 onChange={(e) => setEditedDescription(e.target.value)}
                 placeholder="Task description"
+                className="min-h-[100px]"
               />
               <Select
-                defaultValue={task.status}
+                value={task.status}
                 onValueChange={handleStatusChange}
               >
                 <SelectTrigger>
@@ -120,15 +131,32 @@ export function TaskCard({ task }: TaskCardProps) {
                 </SelectContent>
               </Select>
               <div className="flex justify-between">
-                <Button onClick={handleSave} disabled={updateTask.isPending}>
-                  Save
+                <Button 
+                  onClick={handleSave} 
+                  disabled={updateTask.isPending}
+                >
+                  {updateTask.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
                 </Button>
                 <Button 
                   variant="destructive" 
-                  onClick={() => deleteTask.mutateAsync()}
+                  onClick={() => deleteTask.mutate()}
                   disabled={deleteTask.isPending}
                 >
-                  Delete
+                  {deleteTask.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
                 </Button>
               </div>
             </div>
@@ -144,33 +172,19 @@ export function TaskCard({ task }: TaskCardProps) {
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-medium mb-1">Status</h3>
-              <Badge variant="secondary" className={statusColors[task.status as keyof typeof statusColors]}>
+              <Badge className={statusColors[task.status as keyof typeof statusColors]}>
                 {task.status}
               </Badge>
             </div>
             {task.description && (
               <div>
                 <h3 className="text-sm font-medium mb-1">Description</h3>
-                <p className="text-sm text-muted-foreground">{task.description}</p>
-              </div>
-            )}
-            {task.githubIssueUrl && (
-              <div>
-                <h3 className="text-sm font-medium mb-1">GitHub Issue</h3>
-                <a 
-                  href={task.githubIssueUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-500 hover:underline flex items-center gap-1"
-                >
-                  View on GitHub
-                  <ChevronRight className="h-4 w-4" />
-                </a>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{task.description}</p>
               </div>
             )}
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

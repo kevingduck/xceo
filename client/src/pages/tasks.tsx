@@ -7,42 +7,15 @@ import { TaskCard } from "@/components/widgets/task-card";
 import { Plus, Loader2 } from "lucide-react";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
-import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { DroppableColumn } from "@/components/widgets/droppable-column";
-
-const columns = ["todo", "inProgress", "completed"] as const;
-type ColumnId = typeof columns[number];
-
-const columnTitles: Record<ColumnId, string> = {
-  todo: "To Do",
-  inProgress: "In Progress",
-  completed: "Completed"
-};
 
 export default function Tasks() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { createIssue } = useGitHub();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const { data: tasks = [] } = useQuery<Task[]>({
+  const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks"]
   });
 
@@ -60,23 +33,9 @@ export default function Tasks() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-    }
-  });
-
-  const updateTask = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const response = await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-        credentials: "include"
-      });
-
-      if (!response.ok) throw new Error("Failed to update task");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setIsDialogOpen(false);
+      setTitle("");
+      setDescription("");
     }
   });
 
@@ -93,31 +52,8 @@ export default function Tasks() {
           body: description
         });
       }
-      setTitle("");
-      setDescription("");
     } catch (error) {
       console.error("Failed to create task:", error);
-    }
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const activeTaskId = parseInt(active.id.toString());
-    const overId = over.id.toString() as ColumnId;
-
-    if (
-      activeTaskId &&
-      columns.includes(overId) &&
-      tasks.find(t => t.id === activeTaskId)?.status !== overId
-    ) {
-      updateTask.mutate({
-        id: activeTaskId,
-        status: overId
-      });
     }
   };
 
@@ -125,13 +61,19 @@ export default function Tasks() {
   const inProgressTasks = tasks.filter(t => t.status === "inProgress");
   const completedTasks = tasks.filter(t => t.status === "completed");
 
-  const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Tasks</h2>
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -168,38 +110,34 @@ export default function Tasks() {
         </Dialog>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={({ active }) => setActiveId(parseInt(active.id.toString()))}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(Object.keys(columnTitles) as ColumnId[]).map((id) => (
-            <DroppableColumn
-              key={id}
-              id={id}
-              title={columnTitles[id]}
-              tasks={
-                id === "todo"
-                  ? todoTasks
-                  : id === "inProgress"
-                  ? inProgressTasks
-                  : completedTasks
-              }
-            />
-          ))}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2 p-4 bg-background/50 rounded-lg border">
+          <h3 className="font-semibold">To Do</h3>
+          <div className="space-y-2">
+            {todoTasks.map(task => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
         </div>
 
-        <DragOverlay>
-          {activeTask ? (
-            <div className="opacity-50">
-              <TaskCard task={activeTask} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        <div className="space-y-2 p-4 bg-background/50 rounded-lg border">
+          <h3 className="font-semibold">In Progress</h3>
+          <div className="space-y-2">
+            {inProgressTasks.map(task => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2 p-4 bg-background/50 rounded-lg border">
+          <h3 className="font-semibold">Completed</h3>
+          <div className="space-y-2">
+            {completedTasks.map(task => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
