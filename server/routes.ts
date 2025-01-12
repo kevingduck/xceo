@@ -7,6 +7,14 @@ import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
 
+// Define field validation schema
+const fieldValueSchema = z.object({
+  value: z.any(),
+  type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list'])
+});
+
+const fieldUpdateSchema = z.record(z.string(), fieldValueSchema);
+
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
@@ -317,19 +325,27 @@ Culture & Values:
         return res.status(403).send("Unauthorized");
       }
 
+      // Validate field updates
+      const result = fieldUpdateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid fields: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
       // Get current fields or initialize if none exist
       const currentFields = existingInfo.fields || {};
 
       // Update only the specified fields
       const updatedFields = {
         ...currentFields,
-        ...Object.entries(req.body).reduce((acc, [key, value]) => ({
+        ...Object.entries(result.data).reduce((acc, [key, value]) => ({
           ...acc,
           [key]: {
-            ...currentFields[key],
-            ...value,
+            value: value.value,
+            type: value.type,
             updatedAt: new Date().toISOString(),
-            updatedBy: 'user',
+            updatedBy: 'user'
           }
         }), {})
       };
@@ -339,7 +355,7 @@ Culture & Values:
         businessInfoId: infoId,
         userId: req.user.id,
         content: existingInfo.content,
-        fields: existingInfo.fields,
+        fields: existingInfo.fields || {},
         updatedBy: 'user',
         metadata: { source: 'field-update' }
       });

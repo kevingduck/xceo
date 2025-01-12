@@ -432,91 +432,82 @@ export default function BusinessPage() {
                     onClick={handleEdit}
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
-                    {currentSectionData ? "Edit" : "Add Information"}
+                    Edit
                   </Button>
                 </div>
 
                 <div className="prose prose-sm max-w-none whitespace-pre-wrap">
                   {currentSectionData?.content || (
                     <p className="text-muted-foreground italic">
-                      No information available yet. Click Add Information to get started.
+                      No information available yet. Click Edit to get started.
                     </p>
                   )}
                 </div>
 
-                {/* Fields Section */}
                 {currentTemplate && (
-                  <Card className="mt-6">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Fields</CardTitle>
-                      <CardDescription>
-                        Track and update specific metrics for this section
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-4">
-                        {currentTemplate.fields.map((field) => (
-                          <div key={field.name} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <label className="text-sm font-medium">
-                                  {field.name.split('_').map(word => 
-                                    word.charAt(0).toUpperCase() + word.slice(1)
-                                  ).join(' ')}
-                                </label>
-                                <p className="text-xs text-muted-foreground">
-                                  {field.description}
-                                </p>
-                              </div>
-                              {currentSectionData && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingField(field.name)}
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </div>
+                  <div className="grid gap-4 mt-6">
+                    {currentTemplate.fields.map((field) => (
+                      <div key={field.name} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="text-sm font-medium">
+                              {field.name.split('_').map(word => 
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                              ).join(' ')}
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              {field.description}
+                            </p>
+                          </div>
+                          {currentSectionData && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditingField(field.name)}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
 
-                            {editingField === field.name ? (
-                              <div className="flex items-center gap-2">
-                                <FieldEditor
-                                  field={field}
-                                  value={currentSectionData?.fields?.[field.name]?.value}
-                                  onChange={(value) => 
-                                    handleFieldUpdate(currentSectionData.id, field.name, value)
-                                  }
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingField(null)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="bg-muted rounded-md p-2">
-                                {currentSectionData?.fields?.[field.name] ? (
-                                  <p className="text-sm">
-                                    {formatFieldValue(
-                                      currentSectionData.fields[field.name].value,
-                                      field.type
-                                    )}
-                                  </p>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground italic">
-                                    Not set
-                                  </p>
+                        {editingField === field.name ? (
+                          <div className="flex items-center gap-2">
+                            <FieldEditor
+                              field={field}
+                              value={currentSectionData?.fields?.[field.name]?.value}
+                              onChange={(value) => {
+                                if (currentSectionData) {
+                                  handleFieldUpdate(currentSectionData.id, field.name, value);
+                                }
+                              }}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditingField(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="bg-muted rounded-md p-2">
+                            {currentSectionData?.fields?.[field.name] ? (
+                              <p className="text-sm">
+                                {formatFieldValue(
+                                  currentSectionData.fields[field.name].value,
+                                  field.type
                                 )}
-                              </div>
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                Not set
+                              </p>
                             )}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
