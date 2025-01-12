@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo } from "@db/schema";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
@@ -543,12 +543,26 @@ Culture & Values:
       let result;
       switch (table) {
         case 'users':
+          // For users, first delete all related data
+          await Promise.all([
+            db.delete(tasks).where(inArray(tasks.userId, ids)),
+            db.delete(chatMessages).where(inArray(chatMessages.userId, ids)),
+            db.delete(analytics).where(inArray(analytics.userId, ids)),
+            db.delete(businessInfoHistory).where(inArray(businessInfoHistory.userId, ids)),
+            db.delete(businessInfo).where(inArray(businessInfo.userId, ids))
+          ]);
+          // Then delete the users
           result = await db
             .delete(users)
             .where(inArray(users.id, ids))
             .returning();
           break;
         case 'business_info':
+          // First delete history
+          await db
+            .delete(businessInfoHistory)
+            .where(inArray(businessInfoHistory.businessInfoId, ids));
+          // Then delete business info
           result = await db
             .delete(businessInfo)
             .where(inArray(businessInfo.id, ids))
