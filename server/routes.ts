@@ -381,6 +381,87 @@ Culture & Values:
     res.json(userAnalytics);
   });
 
+  // Admin routes
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const allUsers = await db
+        .select()
+        .from(users);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/business-info", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const allBusinessInfo = await db
+        .select()
+        .from(businessInfo);
+      res.json(allBusinessInfo);
+    } catch (error) {
+      console.error("Error fetching business info:", error);
+      res.status(500).json({ message: "Failed to fetch business info" });
+    }
+  });
+
+  app.get("/api/admin/tasks", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const allTasks = await db
+        .select()
+        .from(tasks);
+      res.json(allTasks);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  app.get("/api/admin/chat-messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const allMessages = await db
+        .select()
+        .from(chatMessages);
+      res.json(allMessages);
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      res.status(500).json({ message: "Failed to fetch chat messages" });
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const allAnalytics = await db
+        .select()
+        .from(analytics);
+      res.json(allAnalytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
 
