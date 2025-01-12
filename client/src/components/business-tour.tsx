@@ -1,125 +1,122 @@
 import { useEffect, useState } from "react";
-import { useShepherd } from "react-shepherd";
-import type Shepherd from 'shepherd.js';
-import "shepherd.js/dist/css/shepherd.css";
+import { useShepherdTour } from "./shepherd-provider";
+import type Shepherd from "shepherd.js";
 
-const tourSteps: Shepherd.Step.StepOptions[] = [
+interface TourProps {
+  isFirstVisit?: boolean;
+}
+
+const steps: Shepherd.Step.StepOptions[] = [
   {
     id: "welcome",
-    title: "Welcome to Business Management",
-    text: "Let's take a quick tour of how to manage your business information effectively.",
     attachTo: {
       element: ".business-header",
       on: "bottom"
     },
-    classes: "shepherd-theme-custom",
     buttons: [
       {
-        type: "cancel",
-        classes: "shepherd-button-secondary",
-        text: "Skip"
+        type: 'cancel',
+        classes: 'shepherd-button-secondary',
+        text: 'Skip'
       },
       {
-        type: "next",
-        text: "Get Started"
+        type: 'next',
+        text: 'Get Started'
       }
-    ]
+    ],
+    classes: 'shepherd-theme-custom',
+    title: "Welcome to Business Management",
+    text: "Let's take a quick tour of how to manage your business information effectively."
   },
   {
     id: "sections",
-    title: "Business Sections",
-    text: "Navigate between different aspects of your business using these tabs. Each section contains specific information and metrics.",
     attachTo: {
       element: "[role='tablist']",
       on: "bottom"
     },
     buttons: [
       {
-        type: "back",
-        text: "Back"
+        type: 'back',
+        text: 'Back'
       },
       {
-        type: "next",
-        text: "Next"
+        type: 'next',
+        text: 'Next'
       }
-    ]
+    ],
+    title: "Business Sections",
+    text: "Navigate between different aspects of your business using these tabs. Each section contains specific information and metrics."
   },
   {
     id: "content",
-    title: "Section Content",
-    text: "Add or edit detailed information about this aspect of your business. Use the edit button to make changes.",
     attachTo: {
       element: ".section-content",
       on: "bottom"
     },
     buttons: [
       {
-        type: "back",
-        text: "Back"
+        type: 'back',
+        text: 'Back'
       },
       {
-        type: "next",
-        text: "Next"
+        type: 'next',
+        text: 'Next'
       }
-    ]
+    ],
+    title: "Section Content",
+    text: "Add or edit detailed information about this aspect of your business. Use the edit button to make changes."
   },
   {
     id: "fields",
-    title: "Structured Fields",
-    text: "Track specific metrics and data points in a structured format. Click the edit icon to update individual fields.",
     attachTo: {
       element: ".fields-section",
       on: "top"
     },
     buttons: [
       {
-        type: "back",
-        text: "Back"
+        type: 'back',
+        text: 'Back'
       },
       {
-        type: "next",
-        text: "Next"
+        type: 'next',
+        text: 'Next'
       }
-    ]
+    ],
+    title: "Structured Fields",
+    text: "Track specific metrics and data points in a structured format. Click the edit icon to update individual fields."
   },
   {
     id: "history",
-    title: "Change History",
-    text: "View the history of changes made to your business information, including AI-suggested updates.",
     attachTo: {
       element: ".history-button",
       on: "bottom"
     },
     buttons: [
       {
-        type: "back",
-        text: "Back"
+        type: 'back',
+        text: 'Back'
       },
       {
-        type: "next",
-        text: "Finish"
+        type: 'next',
+        text: 'Finish'
       }
-    ]
+    ],
+    title: "Change History",
+    text: "View the history of changes made to your business information, including AI-suggested updates."
   }
 ];
 
-interface TourProps {
-  isFirstVisit?: boolean;
-}
-
 export function BusinessTour({ isFirstVisit = true }: TourProps) {
   const [hasShownTour, setHasShownTour] = useState(false);
-  const tour = useShepherd();
+  const tour = useShepherdTour();
 
   useEffect(() => {
     if (!tour || !isFirstVisit || hasShownTour) return;
 
     try {
-      // Register steps with the tour
-      tourSteps.forEach(step => {
-        if (tour && step.id) {
-          tour.addStep(step);
-        }
+      // Add steps to the tour
+      steps.forEach(step => {
+        tour?.addStep(step);
       });
 
       // Handle tour completion
@@ -136,9 +133,7 @@ export function BusinessTour({ isFirstVisit = true }: TourProps) {
 
       // Start the tour after a short delay to ensure elements are mounted
       setTimeout(() => {
-        if (tour && !tour.isActive()) {
-          tour.start();
-        }
+        tour.start();
       }, 500);
     } catch (error) {
       console.error("Error initializing tour:", error);
