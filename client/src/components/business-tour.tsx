@@ -4,6 +4,7 @@ import type Shepherd from "shepherd.js";
 
 interface TourProps {
   isFirstVisit?: boolean;
+  onComplete?: () => void;
 }
 
 const steps: Shepherd.Step.StepOptions[] = [
@@ -15,12 +16,16 @@ const steps: Shepherd.Step.StepOptions[] = [
     },
     buttons: [
       {
-        type: 'cancel',
+        action() {
+          return this.cancel();
+        },
         classes: 'shepherd-button-secondary',
         text: 'Skip'
       },
       {
-        type: 'next',
+        action() {
+          return this.next();
+        },
         text: 'Get Started'
       }
     ],
@@ -36,11 +41,15 @@ const steps: Shepherd.Step.StepOptions[] = [
     },
     buttons: [
       {
-        type: 'back',
+        action() {
+          return this.back();
+        },
         text: 'Back'
       },
       {
-        type: 'next',
+        action() {
+          return this.next();
+        },
         text: 'Next'
       }
     ],
@@ -55,11 +64,15 @@ const steps: Shepherd.Step.StepOptions[] = [
     },
     buttons: [
       {
-        type: 'back',
+        action() {
+          return this.back();
+        },
         text: 'Back'
       },
       {
-        type: 'next',
+        action() {
+          return this.next();
+        },
         text: 'Next'
       }
     ],
@@ -74,11 +87,15 @@ const steps: Shepherd.Step.StepOptions[] = [
     },
     buttons: [
       {
-        type: 'back',
+        action() {
+          return this.back();
+        },
         text: 'Back'
       },
       {
-        type: 'next',
+        action() {
+          return this.next();
+        },
         text: 'Next'
       }
     ],
@@ -93,11 +110,15 @@ const steps: Shepherd.Step.StepOptions[] = [
     },
     buttons: [
       {
-        type: 'back',
+        action() {
+          return this.back();
+        },
         text: 'Back'
       },
       {
-        type: 'next',
+        action() {
+          return this.complete();
+        },
         text: 'Finish'
       }
     ],
@@ -106,14 +127,22 @@ const steps: Shepherd.Step.StepOptions[] = [
   }
 ];
 
-export function BusinessTour({ isFirstVisit = true }: TourProps) {
+export function BusinessTour({ isFirstVisit = true, onComplete }: TourProps) {
   const [hasShownTour, setHasShownTour] = useState(false);
   const tour = useShepherdTour();
 
   useEffect(() => {
-    if (!tour || !isFirstVisit || hasShownTour) return;
+    if (!tour || hasShownTour) return;
+
+    // Only start tour if isFirstVisit is true
+    if (!isFirstVisit) {
+      return;
+    }
 
     try {
+      // Remove any existing steps
+      tour.steps.forEach(() => tour.removeStep(tour.steps[0]));
+
       // Add steps to the tour
       steps.forEach(step => {
         tour?.addStep(step);
@@ -123,22 +152,35 @@ export function BusinessTour({ isFirstVisit = true }: TourProps) {
       tour.on('complete', () => {
         setHasShownTour(true);
         localStorage.setItem("businessTourCompleted", "true");
+        onComplete?.();
       });
 
       // Handle tour cancellation
       tour.on('cancel', () => {
         setHasShownTour(true);
         localStorage.setItem("businessTourCompleted", "true");
+        onComplete?.();
       });
 
       // Start the tour after a short delay to ensure elements are mounted
       setTimeout(() => {
         tour.start();
       }, 500);
+
+      return () => {
+        tour.cancel();
+      };
     } catch (error) {
       console.error("Error initializing tour:", error);
     }
-  }, [tour, isFirstVisit, hasShownTour]);
+  }, [tour, isFirstVisit, hasShownTour, onComplete]);
+
+  // Reset hasShownTour when isFirstVisit changes
+  useEffect(() => {
+    if (isFirstVisit) {
+      setHasShownTour(false);
+    }
+  }, [isFirstVisit]);
 
   return null;
 }

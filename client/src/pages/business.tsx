@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
+import { PlayCircle } from "lucide-react"; // Add this import
 
 interface Section {
   id: string;
@@ -200,6 +201,11 @@ export default function BusinessPage() {
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [isFirstVisit, setIsFirstVisit] = useState(() => {
+    const hasCompletedTour = localStorage.getItem("businessTourCompleted");
+    return !hasCompletedTour;
+  });
+  const [isTourOpen, setIsTourOpen] = useState(false); // Add state for tour
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -382,16 +388,16 @@ export default function BusinessPage() {
   // Get template for current section
   const currentTemplate = templates.find(t => t.name === sectionMappings[activeSection]);
 
-  // Add state for first visit check
-  const [isFirstVisit, setIsFirstVisit] = useState(() => {
-    const hasCompletedTour = localStorage.getItem("businessTourCompleted");
-    return !hasCompletedTour;
-  });
-
   const handleTourComplete = () => {
     localStorage.setItem("businessTourCompleted", "true");
     setIsFirstVisit(false);
   };
+
+  const startTour = () => { // Add tour trigger function
+    setIsFirstVisit(true);
+    setIsTourOpen(true);
+  };
+
 
   if (isBusinessLoading || isTemplateLoading) {
     return (
@@ -403,13 +409,23 @@ export default function BusinessPage() {
 
   return (
     <div className="space-y-6">
-      <BusinessTour isFirstVisit={isFirstVisit} />
+      <BusinessTour isFirstVisit={isFirstVisit || isTourOpen} onComplete={() => setIsTourOpen(false)} />
 
-      <div className="business-header">
-        <h1 className="text-3xl font-bold">Business Management</h1>
-        <p className="text-muted-foreground">
-          Manage and track your business information across different areas
-        </p>
+      <div className="business-header flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Business Management</h1>
+          <p className="text-muted-foreground">
+            Manage and track your business information across different areas
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={startTour}
+          className="tour-trigger"
+        >
+          <PlayCircle className="h-4 w-4 mr-2" />
+          Start Tour
+        </Button>
       </div>
 
       <Tabs value={activeSection} onValueChange={setActiveSection}>
