@@ -1,0 +1,75 @@
+/* Custom theme for Shepherd tour */
+.shepherd-theme-custom {
+  --shepherd-bg: hsl(var(--background));
+  --shepherd-text: hsl(var(--foreground));
+  --shepherd-border: hsl(var(--border));
+  --shepherd-button-primary-bg: hsl(var(--primary));
+  --shepherd-button-primary-text: hsl(var(--primary-foreground));
+}
+
+.shepherd-element {
+  max-width: 400px;
+  border-radius: var(--radius);
+  border: 1px solid var(--shepherd-border);
+  background: var(--shepherd-bg);
+  color: var(--shepherd-text);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.shepherd-text {
+  padding: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.shepherd-header {
+  padding: 1rem 1rem 0;
+  border-bottom: none;
+}
+
+.shepherd-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.shepherd-footer {
+  padding: 0 1rem 1rem;
+}
+
+.shepherd-button {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.shepherd-button-primary {
+  background: var(--shepherd-button-primary-bg);
+  color: var(--shepherd-button-primary-text);
+}
+
+.shepherd-button-primary:hover {
+  opacity: 0.9;
+}
+
+.shepherd-button-secondary {
+  background: transparent;
+  color: var(--shepherd-text);
+}
+
+.shepherd-button-secondary:hover {
+  background: hsl(var(--muted));
+}
+
+.shepherd-arrow {
+  border-width: 8px;
+}
+
+.shepherd-arrow::before {
+  border-width: 8px;
+}
+
+.shepherd-has-title .shepherd-content .shepherd-header {
+  background: transparent;
+}

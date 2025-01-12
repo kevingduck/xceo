@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { BusinessTour } from "@/components/business-tour";
+import "@/styles/tour.css";
 import {
   Card,
   CardContent,
@@ -66,7 +68,7 @@ const sections: Section[] = [
 // Bidirectional mapping between UI section IDs and database section names
 const sectionMappings: Record<string, string> = {
   'overview': 'Business Overview',
-  'finance': 'Financial Overview', 
+  'finance': 'Financial Overview',
   'market': 'Market Intelligence',
   'humanCapital': 'Human Capital',
   'operations': 'Operations',
@@ -94,8 +96,8 @@ const getSectionFromTitle = (title: string): string => {
     return sectionMappings[title];
   }
 
-  const section = sections.find(s => 
-    s.title === title || 
+  const section = sections.find(s =>
+    s.title === title ||
     s.id === title.toLowerCase().replace(/\s+/g, '')
   );
 
@@ -113,9 +115,9 @@ const formatFieldValue = (value: any, type: string) => {
 
   switch (type) {
     case 'currency':
-      return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD' 
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
       }).format(Number(value));
     case 'percentage':
       return `${value}%`;
@@ -129,13 +131,13 @@ const formatFieldValue = (value: any, type: string) => {
 };
 
 // Field Editor Component
-function FieldEditor({ 
-  field, 
-  value, 
-  onChange 
-}: { 
-  field: BusinessField; 
-  value: any; 
+function FieldEditor({
+  field,
+  value,
+  onChange
+}: {
+  field: BusinessField;
+  value: any;
   onChange: (value: any) => void;
 }) {
   switch (field.type) {
@@ -248,12 +250,12 @@ export default function BusinessPage() {
   });
 
   const updateBusinessFields = useMutation({
-    mutationFn: async ({ 
-      id, 
-      fields 
-    }: { 
-      id: number; 
-      fields: Record<string, any>; 
+    mutationFn: async ({
+      id,
+      fields
+    }: {
+      id: number;
+      fields: Record<string, any>;
     }) => {
       const response = await fetch(`/api/business-info/${id}/fields`, {
         method: "PATCH",
@@ -286,14 +288,14 @@ export default function BusinessPage() {
   });
 
   const createBusinessInfo = useMutation({
-    mutationFn: async ({ 
-      section, 
-      title, 
-      content 
-    }: { 
-      section: string; 
-      title: string; 
-      content: string; 
+    mutationFn: async ({
+      section,
+      title,
+      content
+    }: {
+      section: string;
+      title: string;
+      content: string;
     }) => {
       const response = await fetch("/api/business-info", {
         method: "POST",
@@ -380,6 +382,17 @@ export default function BusinessPage() {
   // Get template for current section
   const currentTemplate = templates.find(t => t.name === sectionMappings[activeSection]);
 
+  // Add state for first visit check
+  const [isFirstVisit, setIsFirstVisit] = useState(() => {
+    const hasCompletedTour = localStorage.getItem("businessTourCompleted");
+    return !hasCompletedTour;
+  });
+
+  const handleTourComplete = () => {
+    localStorage.setItem("businessTourCompleted", "true");
+    setIsFirstVisit(false);
+  };
+
   if (isBusinessLoading || isTemplateLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
@@ -390,7 +403,9 @@ export default function BusinessPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <BusinessTour isFirstVisit={isFirstVisit} />
+
+      <div className="business-header">
         <h1 className="text-3xl font-bold">Business Management</h1>
         <p className="text-muted-foreground">
           Manage and track your business information across different areas
@@ -418,6 +433,7 @@ export default function BusinessPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="history-button"
                     onClick={() => {
                       setSelectedInfo(currentSectionData || null);
                       setShowHistory(true);
@@ -436,7 +452,7 @@ export default function BusinessPage() {
                   </Button>
                 </div>
 
-                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                <div className="section-content prose prose-sm max-w-none whitespace-pre-wrap">
                   {currentSectionData?.content || (
                     <p className="text-muted-foreground italic">
                       No information available yet. Click Add Information to get started.
@@ -446,7 +462,7 @@ export default function BusinessPage() {
 
                 {/* Fields Section */}
                 {currentTemplate && (
-                  <Card className="mt-6">
+                  <Card className="mt-6 fields-section">
                     <CardHeader>
                       <CardTitle className="text-lg">Fields</CardTitle>
                       <CardDescription>
@@ -460,7 +476,7 @@ export default function BusinessPage() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <label className="text-sm font-medium">
-                                  {field.name.split('_').map(word => 
+                                  {field.name.split('_').map(word =>
                                     word.charAt(0).toUpperCase() + word.slice(1)
                                   ).join(' ')}
                                 </label>
@@ -484,7 +500,7 @@ export default function BusinessPage() {
                                 <FieldEditor
                                   field={field}
                                   value={currentSectionData?.fields?.[field.name]?.value}
-                                  onChange={(value) => 
+                                  onChange={(value) =>
                                     handleFieldUpdate(currentSectionData.id, field.name, value)
                                   }
                                 />

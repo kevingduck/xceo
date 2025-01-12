@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 import { FloatingChat } from "@/components/widgets/floating-chat";
+import { ShepherdProvider } from "@/components/shepherd-provider";
 
 import AuthPage from "@/pages/auth-page";
 import ConfigureCEO from "@/pages/configure-ceo";
@@ -56,8 +57,10 @@ function ProtectedRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ProtectedRoutes />
-      <Toaster />
+      <ShepherdProvider>
+        <ProtectedRoutes />
+        <Toaster />
+      </ShepherdProvider>
     </QueryClientProvider>
   );
 }
