@@ -62,6 +62,11 @@ const sections: Section[] = [
   }
 ];
 
+const normalizeSection = (section: string): string => {
+  // Remove spaces and convert to lowercase
+  return section.replace(/\s+/g, '').toLowerCase();
+};
+
 export default function BusinessPage() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
@@ -93,7 +98,7 @@ export default function BusinessPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
-        credentials: "include",
+        credentials: "include"
       });
 
       if (!response.ok) {
@@ -107,16 +112,16 @@ export default function BusinessPage() {
       setIsEditing(false);
       toast({
         title: "Changes saved",
-        description: "Your business information has been updated",
+        description: "Your business information has been updated"
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
-    },
+    }
   });
 
   const handleEdit = (info: BusinessInfo) => {
@@ -130,16 +135,18 @@ export default function BusinessPage() {
     if (selectedInfo) {
       updateBusinessInfo.mutate({
         id: selectedInfo.id,
-        content: editedContent,
+        content: editedContent
       });
     }
   };
 
-  const currentSectionData = businessInfo?.find(
-    info => info.section.toLowerCase() === activeSection.toLowerCase()
+  // Find the current section's data by normalizing section names for comparison
+  const currentSectionData = businessInfo?.find(info => 
+    normalizeSection(info.section) === normalizeSection(activeSection)
   );
 
-  console.log("Current section:", activeSection);
+  console.log("Active section:", activeSection);
+  console.log("All business info:", businessInfo);
   console.log("Current section data:", currentSectionData);
 
   if (isBusinessLoading) {
