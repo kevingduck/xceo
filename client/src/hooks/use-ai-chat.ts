@@ -18,7 +18,8 @@ export function useAIChat() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to send message");
+        const text = await response.text();
+        throw new Error(text || "Failed to send message");
       }
 
       return response.json();
@@ -30,6 +31,7 @@ export function useAIChat() {
 
   return {
     messages,
-    sendMessage: sendMessage.mutateAsync
+    sendMessage: sendMessage.mutateAsync,
+    isLoading: sendMessage.isPending
   };
 }

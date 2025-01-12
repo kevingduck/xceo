@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatMessage as ChatMessageType } from "@db/schema";
 import { useAIChat } from "@/hooks/use-ai-chat";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 type SuggestedAction = {
   label: string;
@@ -13,6 +15,7 @@ type SuggestedAction = {
 export function ChatMessage({ message }: { message: ChatMessageType }) {
   const isAI = message.role === "assistant";
   const { sendMessage } = useAIChat();
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Parse suggested actions from metadata if they exist
   const suggestedActions: SuggestedAction[] = 
@@ -28,7 +31,12 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
   ));
 
   const handleActionClick = async (action: SuggestedAction) => {
-    await sendMessage(action.value);
+    try {
+      setActionLoading(action.label);
+      await sendMessage(action.value);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -56,13 +64,17 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
 
         {isAI && suggestedActions.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
-            {suggestedActions.map((action, index) => (
+            {suggestedActions.map((action) => (
               <Button
-                key={index}
+                key={action.label}
                 variant="outline"
                 size="sm"
                 onClick={() => handleActionClick(action)}
+                disabled={!!actionLoading}
               >
+                {actionLoading === action.label ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
                 {action.label}
               </Button>
             ))}

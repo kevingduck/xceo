@@ -29,6 +29,57 @@ export const businessSections: BusinessSection[] = [
       { name: "long_term_goals", type: "list", description: "3-5 year strategic objectives" },
       { name: "growth_targets", type: "list", description: "Specific growth metrics and targets" }
     ]
+  },
+  {
+    name: "Financial Overview",
+    fields: [
+      { name: "revenue_current", type: "currency", description: "Current annual revenue" },
+      { name: "revenue_target", type: "currency", description: "Annual revenue target" },
+      { name: "growth_rate", type: "percentage", description: "Monthly growth rate" },
+      { name: "burn_rate", type: "currency", description: "Monthly burn rate" },
+      { name: "runway", type: "number", description: "Remaining runway in months" },
+      { name: "cac", type: "currency", description: "Customer Acquisition Cost" },
+      { name: "ltv", type: "currency", description: "Customer Lifetime Value" },
+      { name: "gross_margin", type: "percentage", description: "Gross margin percentage" },
+      { name: "mrr", type: "currency", description: "Monthly Recurring Revenue" },
+      { name: "arpu", type: "currency", description: "Average Revenue Per User" }
+    ]
+  },
+  {
+    name: "Market Intelligence",
+    fields: [
+      { name: "tam", type: "currency", description: "Total Addressable Market size" },
+      { name: "sam", type: "currency", description: "Serviceable Available Market size" },
+      { name: "som", type: "currency", description: "Serviceable Obtainable Market size" },
+      { name: "primary_segments", type: "list", description: "Primary customer segments" },
+      { name: "segment_characteristics", type: "list", description: "Key characteristics of each segment" },
+      { name: "customer_pain_points", type: "list", description: "Major pain points addressed" },
+      { name: "direct_competitors", type: "list", description: "Direct competitors and their strengths" },
+      { name: "indirect_competitors", type: "list", description: "Indirect competitors and alternatives" },
+      { name: "competitive_advantages", type: "list", description: "Our key competitive advantages" }
+    ]
+  },
+  {
+    name: "Human Capital",
+    fields: [
+      { name: "team_size", type: "number", description: "Current team size" },
+      { name: "departments", type: "list", description: "Active departments" },
+      { name: "leadership_positions", type: "list", description: "Key leadership roles" },
+      { name: "immediate_needs", type: "list", description: "Immediate hiring needs" },
+      { name: "future_roles", type: "list", description: "Planned future positions" },
+      { name: "skill_requirements", type: "list", description: "Critical skill requirements" }
+    ]
+  },
+  {
+    name: "Operations",
+    fields: [
+      { name: "product_delivery", type: "text", description: "Product/service delivery process" },
+      { name: "quality_metrics", type: "list", description: "Quality control standards" },
+      { name: "delivery_timeline", type: "text", description: "Standard delivery timeline" },
+      { name: "tech_stack", type: "list", description: "Current technology stack" },
+      { name: "support_channels", type: "list", description: "Available support channels" },
+      { name: "response_time", type: "number", description: "Target response time in hours" }
+    ]
   }
 ];
 
@@ -137,9 +188,7 @@ export async function processAIMessage(
       "fields": {
         "targetSegments": {
           "value": ["Service Businesses", "Real Estate", "Small Business"],
-          "type": "list",
-          "updatedAt": "${new Date().toISOString()}",
-          "updatedBy": "ai"
+          "type": "list"
         }
       }
     }
