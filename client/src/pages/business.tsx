@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, History, Edit2, Plus } from "lucide-react";
+import { Loader2, History, Edit2, Plus, PlayCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,20 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
-import { PlayCircle } from "lucide-react"; // Add this import
+
+// Bidirectional mapping between UI section IDs and database section names
+const sectionMappings: Record<string, string> = {
+  'overview': 'Business Overview',
+  'finance': 'Financial Overview',
+  'market': 'Market Intelligence',
+  'humanCapital': 'Human Capital',
+  'operations': 'Operations',
+  'Business Overview': 'overview',
+  'Financial Overview': 'finance',
+  'Market Intelligence': 'market',
+  'Human Capital': 'humanCapital',
+  'Operations': 'operations'
+};
 
 interface Section {
   id: string;
@@ -65,20 +78,6 @@ const sections: Section[] = [
     description: "Operational processes, efficiency metrics, and improvement initiatives"
   }
 ];
-
-// Bidirectional mapping between UI section IDs and database section names
-const sectionMappings: Record<string, string> = {
-  'overview': 'Business Overview',
-  'finance': 'Financial Overview',
-  'market': 'Market Intelligence',
-  'humanCapital': 'Human Capital',
-  'operations': 'Operations',
-  'Business Overview': 'overview',
-  'Financial Overview': 'finance',
-  'Market Intelligence': 'market',
-  'Human Capital': 'humanCapital',
-  'Operations': 'operations'
-};
 
 interface BusinessField {
   name: string;
@@ -205,7 +204,7 @@ export default function BusinessPage() {
     const hasCompletedTour = localStorage.getItem("businessTourCompleted");
     return !hasCompletedTour;
   });
-  const [isTourOpen, setIsTourOpen] = useState(false); // Add state for tour
+  const [isTourOpen, setIsTourOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -393,7 +392,7 @@ export default function BusinessPage() {
     setIsFirstVisit(false);
   };
 
-  const startTour = () => { // Add tour trigger function
+  const startTour = () => {
     setIsFirstVisit(true);
     setIsTourOpen(true);
   };
@@ -408,22 +407,23 @@ export default function BusinessPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <BusinessTour isFirstVisit={isFirstVisit || isTourOpen} onComplete={() => setIsTourOpen(false)} />
 
-      <div className="business-header flex justify-between items-center">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Business Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">Business Management</h1>
+          <p className="text-muted-foreground mt-2">
             Manage and track your business information across different areas
           </p>
         </div>
         <Button 
           variant="outline" 
           onClick={startTour}
-          className="tour-trigger"
+          className="tour-trigger flex items-center gap-2"
+          size="sm"
         >
-          <PlayCircle className="h-4 w-4 mr-2" />
+          <PlayCircle className="h-4 w-4" />
           Start Tour
         </Button>
       </div>
