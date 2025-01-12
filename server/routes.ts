@@ -73,6 +73,54 @@ export function registerRoutes(app: Express): Server {
     res.json(task[0]);
   });
 
+  app.patch("/api/tasks/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    const taskId = parseInt(req.params.id);
+    if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
+
+    // Verify task belongs to user
+    const [existingTask] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1);
+
+    if (!existingTask) return res.status(404).send("Task not found");
+    if (existingTask.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+    const [updatedTask] = await db
+      .update(tasks)
+      .set(req.body)
+      .where(eq(tasks.id, taskId))
+      .returning();
+
+    res.json(updatedTask);
+  });
+
+  app.delete("/api/tasks/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    const taskId = parseInt(req.params.id);
+    if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
+
+    // Verify task belongs to user
+    const [existingTask] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1);
+
+    if (!existingTask) return res.status(404).send("Task not found");
+    if (existingTask.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+    await db
+      .delete(tasks)
+      .where(eq(tasks.id, taskId));
+
+    res.json({ success: true });
+  });
+
   // Chat API
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
