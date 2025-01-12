@@ -75,20 +75,47 @@ export async function trackTaskMetrics(userId: number) {
     // Generate AI insights with error handling
     let aiInsights;
     try {
-      aiInsights = await generateAIInsights({
-        taskStats: {
-          completionRate,
-          totalTasks: stats.totalTasks,
-          completedTasks: stats.completedTasks,
-          averageTimeToComplete: stats.averageTimeToComplete,
-          tasksByCategory: distribution
-        },
-        taskTrend: taskTrend.length > 0 ? taskTrend : [{ 
-          date: new Date().toISOString().split('T')[0],
-          completed: 0,
-          total: 0
-        }]
+      const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 1024,
+        messages: [{ 
+          role: "user", 
+          content: `Analyze this business performance data and provide insights:
+Task Statistics:
+- Completion rate: ${stats.completionRate * 100}%
+- Total tasks: ${stats.totalTasks}
+- Completed tasks: ${stats.completedTasks}
+- Average completion time: ${Math.round(stats.averageTimeToComplete / 3600)} hours
+
+Task Trend (last ${taskTrend.length} days):
+${taskTrend.map(d => 
+  `${d.date}: ${d.completed}/${d.total} tasks completed`
+).join('\n')}
+
+Provide the following in JSON format:
+1. A brief summary of the current performance (as a string)
+2. Three specific recommendations for improvement (as an array of strings)
+3. Predictions for task completion rates for next week and next month (as decimals)` 
+        }],
       });
+
+      // Parse AI response ensuring correct types
+      const content = response.content[0];
+      if ('text' in content) {
+        const parsed = JSON.parse(content.text);
+        aiInsights = {
+          summary: String(parsed.summary || "Getting started with task analytics"),
+          recommendations: Array.isArray(parsed.recommendations) 
+            ? parsed.recommendations.map(String)
+            : ["Start by creating your first task"],
+          predictions: {
+            nextWeek: Number(parsed.predictions?.nextWeek || 0),
+            nextMonth: Number(parsed.predictions?.nextMonth || 0)
+          }
+        };
+      } else {
+        throw new Error('Unexpected response format from Anthropic API');
+      }
     } catch (error) {
       console.error('Failed to generate AI insights:', error);
       aiInsights = {
@@ -141,68 +168,5 @@ export async function trackResponseTime(userId: number, responseTime: number) {
   } catch (error) {
     console.error('Failed to track response time:', error);
     throw new Error('Failed to update response time analytics');
-  }
-}
-
-async function generateAIInsights(data: {
-  taskStats: TaskMetrics;
-  taskTrend: Array<{
-    date: string;
-    completed: number;
-    total: number;
-  }>;
-}): Promise<{
-  summary: string;
-  recommendations: string[];
-  predictions: {
-    nextWeek: number;
-    nextMonth: number;
-  };
-}> {
-  const prompt = `Analyze this business performance data and provide insights:
-Task Statistics:
-- Completion rate: ${data.taskStats.completionRate * 100}%
-- Total tasks: ${data.taskStats.totalTasks}
-- Completed tasks: ${data.taskStats.completedTasks}
-- Average completion time: ${Math.round(data.taskStats.averageTimeToComplete / 3600)} hours
-
-Task Trend (last ${data.taskTrend.length} days):
-${data.taskTrend.map(d => 
-  `${d.date}: ${d.completed}/${d.total} tasks completed`
-).join('\n')}
-
-Provide the following in JSON format:
-1. A brief summary of the current performance
-2. Three specific recommendations for improvement
-3. Predictions for task completion rates for next week and next month (as decimals)
-`;
-
-  const response = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 1024,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  try {
-    // Access the content directly from the first message
-    const content = response.content[0];
-    if ('text' in content) {
-      return JSON.parse(content.text);
-    }
-    throw new Error('Unexpected response format from Anthropic API');
-  } catch (error) {
-    console.error('Failed to parse AI insights:', error);
-    return {
-      summary: "Unable to generate insights at this time.",
-      recommendations: [
-        "Continue monitoring task completion rates",
-        "Review task distribution regularly",
-        "Set clear deadlines for tasks"
-      ],
-      predictions: {
-        nextWeek: data.taskStats.completionRate,
-        nextMonth: data.taskStats.completionRate
-      }
-    };
   }
 }
