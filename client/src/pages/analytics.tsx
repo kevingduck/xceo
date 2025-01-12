@@ -11,7 +11,7 @@ export default function Analytics() {
     queryKey: ["/api/analytics"]
   });
 
-  // Extract AI insights
+  // Extract AI insights with safe defaults
   const aiInsights = analytics
     .find(a => a.type === 'ai_insights')
     ?.data as {
@@ -22,36 +22,45 @@ export default function Analytics() {
         nextMonth: number;
       };
     } || {
-      summary: "Loading insights...",
-      recommendations: [],
+      summary: "Getting started with your analytics dashboard",
+      recommendations: [
+        "Start by creating your first task",
+        "Set clear deadlines for your tasks",
+        "Track progress regularly"
+      ],
       predictions: { nextWeek: 0, nextMonth: 0 }
     };
 
-  const taskCompletion = analytics
+  const taskCompletion = (analytics
     .filter(a => a.type === "task_completion")
     .map(a => ({
       date: new Date(a.createdAt).toLocaleDateString(),
-      value: (a.data as any).completedTasks,
-      rate: (a.data as any).completionRate * 100
-    }));
+      value: ((a.data as any)?.completedTasks) || 0,
+      rate: ((a.data as any)?.completionRate || 0) * 100
+    }))) || [];
 
-  const responseTime = analytics
+  const responseTime = (analytics
     .filter(a => a.type === "response_time")
     .map(a => ({
       date: new Date(a.createdAt).toLocaleDateString(),
-      value: (a.data as any).averageTime / 1000 // Convert to seconds
-    }));
+      value: ((a.data as any)?.averageTime || 0) / 1000 // Convert to seconds
+    }))) || [];
 
-  const taskDistribution = analytics
+  const taskDistribution = (analytics
     .filter(a => a.type === "task_distribution")
-    .map(a => Object.entries((a.data as any)).map(([name, value]) => ({
+    .map(a => Object.entries((a.data as any) || {}).map(([name, value]) => ({
       name,
-      value
-    }))).flat();
+      value: value || 0
+    }))).flat()) || [];
 
-  const latestCompletion = analytics
+  const latestCompletion = (analytics
     .find(a => a.type === "task_completion")
-    ?.data as any || {};
+    ?.data as any) || {
+      completionRate: 0,
+      totalTasks: 0,
+      completedTasks: 0,
+      averageTimeToComplete: 0
+    };
 
   return (
     <div className="space-y-6">
@@ -116,13 +125,19 @@ export default function Analytics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={taskCompletion}>
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" name="Completed Tasks" stroke="#3b82f6" />
-                  <Line type="monotone" dataKey="rate" name="Completion Rate %" stroke="#10b981" />
-                </LineChart>
+                {taskCompletion.length > 0 ? (
+                  <LineChart data={taskCompletion}>
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" name="Completed Tasks" stroke="#3b82f6" />
+                    <Line type="monotone" dataKey="rate" name="Completion Rate %" stroke="#10b981" />
+                  </LineChart>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    No task completion data yet
+                  </div>
+                )}
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -135,12 +150,18 @@ export default function Analytics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={responseTime}>
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Response Time (s)" fill="#3b82f6" />
-                </BarChart>
+                {responseTime.length > 0 ? (
+                  <BarChart data={responseTime}>
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" name="Response Time (s)" fill="#3b82f6" />
+                  </BarChart>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    No response time data yet
+                  </div>
+                )}
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -153,18 +174,24 @@ export default function Analytics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={taskDistribution}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#3b82f6"
-                  />
-                  <Tooltip />
-                </PieChart>
+                {taskDistribution.length > 0 ? (
+                  <PieChart>
+                    <Pie
+                      data={taskDistribution}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#3b82f6"
+                    />
+                    <Tooltip />
+                  </PieChart>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    No task distribution data yet
+                  </div>
+                )}
               </ResponsiveContainer>
             </div>
           </CardContent>
