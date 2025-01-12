@@ -40,7 +40,7 @@ export default function ConfigureCEO() {
         title: "Configuration successful",
         description: "Your AI CEO is ready to help you manage your business"
       });
-      setLocation("/");
+      setLocation("/chat"); 
     },
     onError: (error: Error) => {
       toast({

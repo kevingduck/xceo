@@ -6,6 +6,7 @@ import { db } from "@db";
 import { tasks, chatMessages, analytics, users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { processAIMessage } from "./services/ai";
 
 const configureCEOSchema = z.object({
   businessName: z.string().min(1, "Business name is required"),
@@ -86,13 +87,50 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
-    const message = await db.insert(chatMessages)
-      .values({
-        ...req.body,
-        userId: req.user.id
-      })
-      .returning();
-    res.json(message[0]);
+    try {
+      // First save the user's message
+      const [userMessage] = await db.insert(chatMessages)
+        .values({
+          content: req.body.content,
+          role: "user",
+          userId: req.user.id
+        })
+        .returning();
+
+      // Get business context for AI
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id))
+        .limit(1);
+
+      const businessContext = user.businessName ? {
+        name: user.businessName,
+        description: user.businessDescription,
+        objectives: user.businessObjectives as string[]
+      } : undefined;
+
+      // Process with AI and get response
+      const aiResponse = await processAIMessage(
+        req.user.id,
+        req.body.content,
+        businessContext
+      );
+
+      // Save AI's response
+      const [savedResponse] = await db.insert(chatMessages)
+        .values({
+          content: aiResponse,
+          role: "assistant",
+          userId: req.user.id
+        })
+        .returning();
+
+      res.json(savedResponse);
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(500).send("Failed to process message");
+    }
   });
 
   // Analytics API
