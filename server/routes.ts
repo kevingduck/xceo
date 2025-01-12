@@ -431,13 +431,16 @@ Culture & Values:
         businessContext
       );
 
-      // Save AI's response
+      // Save AI's response with metadata including suggested actions
       const [savedResponse] = await db.insert(chatMessages)
         .values({
-          content: aiResponse,
+          content: aiResponse.content,
           role: "assistant",
           userId: req.user.id,
-          metadata: { timestamp: new Date().toISOString() }
+          metadata: {
+            timestamp: new Date().toISOString(),
+            suggestedActions: aiResponse.suggestedActions
+          }
         })
         .returning();
 

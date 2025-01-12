@@ -238,7 +238,7 @@ Operational Improvements:
 
 // Add new function for processing field updates
 async function processFieldUpdate(
-  businessInfoId: number, 
+  businessInfoId: number,
   fieldUpdates: Record<string, any>,
   reason: string
 ) {
@@ -255,19 +255,25 @@ async function processFieldUpdate(
     throw new Error('Failed to update business info fields');
   }
 
-  // Add to history (Assuming businessInfoHistory table exists)
-  //  You'll need to define this table in your schema if it doesn't already exist.
+  // Add to history
   await db.insert(businessInfoHistory).values({
     businessInfoId: info.id,
     userId: info.userId,
-    content: info.content, // Assuming content field exists in businessInfoHistory
+    content: info.content,
     fields: info.fields,
     updatedBy: 'ai',
-    reason: reason
+    reason: reason,
+    metadata: { source: 'ai-update' }
   });
 
   return info;
 }
+
+type SuggestedAction = {
+  label: string;
+  type: 'field_update' | 'task_creation' | 'analysis';
+  value: string;
+};
 
 export async function processAIMessage(userId: number, userMessage: string, businessContext?: {
   name: string;
@@ -294,42 +300,40 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     5. Updates business fields when new information is provided
     6. Maintains context across the conversation
 
-    Communication Guidelines:
-    - Be conversational and natural in your responses
-    - Ask thoughtful questions when you need more context
-    - Think through implications before making suggestions
-    - Create tasks only when there are clear, actionable items
-    - Update business fields when relevant information is shared
-    - Focus on quality strategic discussion over quantity of actions
+    Always provide 2-3 suggested next actions after your response in this format:
+    <suggested_actions>
+    [
+      {
+        "label": "Button text to show user",
+        "type": "field_update|task_creation|analysis",
+        "value": "The message to send when this action is clicked"
+      }
+    ]
+    </suggested_actions>
 
-    Business Information Templates:
-    ${businessSections.map(section => 
-      `${section.name}:\n${section.template}\n`
-    ).join('\n')}
-
-    When you need to update specific fields, use this format:
-    <field_update business_info_id="[ID]">
+    When updating business fields, use this exact format:
+    <field_update>
     {
-      "fieldName": {
-        "value": "updated value",
-        "type": "text/number/currency/percentage/date/list"
+      "businessInfoId": 1,
+      "fields": {
+        "fieldName": {
+          "value": "updated value",
+          "type": "text|number|currency|percentage|date|list",
+          "updatedAt": "2025-01-12T00:00:00.000Z",
+          "updatedBy": "ai"
+        }
       }
     }
     </field_update>
 
-    When creating tasks, format them as:
+    When creating tasks, use this format:
     <task>
     {
       "title": "Task title",
       "description": "Detailed task description",
       "status": "todo"
     }
-    </task>
-
-    Previous conversation context:
-    ${businessContext.recentMessages ? businessContext.recentMessages.map(msg => 
-      `${msg.role}: ${msg.content}`
-    ).join("\n") : "No previous context"}` :
+    </task>` :
     'You are an AI CEO assistant. Please ask the user to configure their business details first. Be friendly and explain why this configuration would be helpful for our collaboration.';
 
   try {
@@ -341,7 +345,7 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     });
 
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-latest",
+      model: "claude-3-sonnet-20240229",
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
       max_tokens: 4096,
@@ -351,46 +355,51 @@ export async function processAIMessage(userId: number, userMessage: string, busi
     // Ensure we have a text response
     const messageContent = response.content[0];
     if (messageContent.type !== 'text') {
-      return "I apologize, but I can only process text responses at the moment.";
+      return {
+        content: "I apologize, but I can only process text responses at the moment.",
+        suggestedActions: []
+      };
     }
 
     let finalResponse = messageContent.text;
+    let suggestedActions: SuggestedAction[] = [];
+
+    // Extract suggested actions
+    const actionMatch = finalResponse.match(/<suggested_actions>\s*([\s\S]+?)\s*<\/suggested_actions>/);
+    if (actionMatch) {
+      try {
+        suggestedActions = JSON.parse(actionMatch[1]);
+        finalResponse = finalResponse.replace(/<suggested_actions>[\s\S]+?<\/suggested_actions>/, '');
+      } catch (e) {
+        console.error("Failed to parse suggested actions:", e);
+      }
+    }
 
     // Process field updates
-    const fieldUpdateMatches = finalResponse.match(/<field_update business_info_id="(\d+)">\s*({[\s\S]+?})\s*<\/field_update>/gm);
+    const fieldUpdateMatches = finalResponse.match(/<field_update>\s*({[\s\S]+?})\s*<\/field_update>/gm);
     if (fieldUpdateMatches) {
       console.log("Found field updates:", fieldUpdateMatches.length);
       for (const match of fieldUpdateMatches) {
-        const idMatch = match.match(/business_info_id="(\d+)"/);
         const jsonMatch = match.match(/{[\s\S]+?}/);
-
-        if (!idMatch || !jsonMatch) continue;
-
-        const businessInfoId = parseInt(idMatch[1]);
-        let fieldData;
-        try {
-          fieldData = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          console.error("Failed to parse field data:", e);
-          continue;
-        }
+        if (!jsonMatch) continue;
 
         try {
+          const updateData = JSON.parse(jsonMatch[0]);
           await processFieldUpdate(
-            businessInfoId,
-            fieldData,
+            updateData.businessInfoId,
+            updateData.fields,
             "AI-suggested update based on conversation"
           );
 
           finalResponse = finalResponse.replace(
             match,
-            `✓ Updated fields for business info #${businessInfoId}`
+            `✓ Updated business information fields`
           );
         } catch (error) {
           console.error("Error updating fields:", error);
           finalResponse = finalResponse.replace(
             match,
-            `⚠ Failed to update fields: ${error.message}`
+            `⚠ Failed to update fields: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
         }
       }
@@ -402,17 +411,8 @@ export async function processAIMessage(userId: number, userMessage: string, busi
       console.log("Found task creations:", taskMatches.length);
       for (const match of taskMatches) {
         const taskJson = match.replace(/<\/?task>/g, '');
-        let taskData;
         try {
-          taskData = JSON.parse(taskJson);
-        } catch (e) {
-          console.error("Failed to parse task data:", e);
-          continue;
-        }
-
-        console.log("Creating task:", taskData);
-
-        try {
+          const taskData = JSON.parse(taskJson);
           const [task] = await db.insert(tasks)
             .values({
               ...taskData,
@@ -428,13 +428,16 @@ export async function processAIMessage(userId: number, userMessage: string, busi
           console.error("Error creating task:", error);
           finalResponse = finalResponse.replace(
             match,
-            `⚠ Failed to create task: ${error.message}`
+            `⚠ Failed to create task: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
         }
       }
     }
 
-    return finalResponse;
+    return {
+      content: finalResponse.trim(),
+      suggestedActions
+    };
   } catch (error: any) {
     console.error("Error processing AI message:", error);
     throw error;
