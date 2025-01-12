@@ -62,12 +62,45 @@ const sections: Section[] = [
   }
 ];
 
+// Bidirectional mapping between UI section IDs and database section names
+const sectionMappings: Record<string, string> = {
+  // UI ID to Database Name
+  'overview': 'Business Overview',
+  'finance': 'Financial Overview', 
+  'market': 'Market Intelligence',
+  'humanCapital': 'Human Capital',
+  'operations': 'Operations',
+  // Database Name to UI ID
+  'Business Overview': 'overview',
+  'Financial Overview': 'finance',
+  'Market Intelligence': 'market',
+  'Human Capital': 'humanCapital',
+  'Operations': 'operations'
+};
+
 const getSectionFromTitle = (title: string): string => {
-  const section = sections.find(s =>
-    s.title.toLowerCase() === title.toLowerCase() ||
-    s.id.toLowerCase() === title.toLowerCase().replace(/\s+/g, '')
+  console.log('Getting section for title:', title);
+
+  // Direct lookup in mappings
+  if (title in sectionMappings) {
+    const mapped = sectionMappings[title];
+    console.log('Found direct mapping:', mapped);
+    return mapped;
+  }
+
+  // Fallback to finding the UI section ID
+  const section = sections.find(s => 
+    s.title === title || 
+    s.id === title.toLowerCase().replace(/\s+/g, '')
   );
-  return section?.id || title.toLowerCase().replace(/\s+/g, '');
+
+  if (section) {
+    console.log('Found section by ID/title:', section.id);
+    return section.id;
+  }
+
+  console.log('No mapping found, defaulting to overview');
+  return 'overview';
 };
 
 const getTitleFromSection = (sectionId: string): string => {
@@ -104,7 +137,8 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -128,6 +162,7 @@ export default function BusinessPage() {
 
   const createBusinessInfo = useMutation({
     mutationFn: async ({ section, title, content }: { section: string; title: string; content: string }) => {
+      console.log('Creating business info with section:', section);
       const response = await fetch("/api/business-info", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,7 +171,8 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -159,15 +195,16 @@ export default function BusinessPage() {
   });
 
   const handleEdit = () => {
-    // Find current section data
     const currentSection = sections.find(s => s.id === activeSection);
     if (!currentSection) return;
 
-    const info = businessInfo.find(info => 
-      getSectionFromTitle(info.section) === activeSection
-    );
+    const info = businessInfo.find(info => {
+      const infoSection = getSectionFromTitle(info.section);
+      console.log(`Looking for section match: ${info.section} -> ${infoSection} comparing with ${activeSection}`);
+      return infoSection === activeSection;
+    });
 
-    console.log("Editing business info:", info);
+    console.log("Selected info for editing:", info);
     setSelectedInfo(info || null);
     setEditedContent(info?.content || "");
     setIsEditing(true);
@@ -177,6 +214,12 @@ export default function BusinessPage() {
     const currentSection = sections.find(s => s.id === activeSection);
     if (!currentSection) return;
 
+    console.log('Saving section:', {
+      activeSection,
+      mappedSection: sectionMappings[activeSection],
+      currentSection
+    });
+
     if (selectedInfo) {
       updateBusinessInfo.mutate({
         id: selectedInfo.id,
@@ -184,7 +227,7 @@ export default function BusinessPage() {
       });
     } else {
       createBusinessInfo.mutate({
-        section: currentSection.title,
+        section: currentSection.title, // Use the display title as stored in the database
         title: currentSection.title,
         content: editedContent
       });
@@ -194,7 +237,7 @@ export default function BusinessPage() {
   // Find business info for current section
   const currentSectionData = businessInfo.find(info => {
     const infoSection = getSectionFromTitle(info.section);
-    console.log(`Comparing section ${infoSection} with active ${activeSection}`);
+    console.log(`Checking section: ${info.section} (${infoSection}) against active ${activeSection}`);
     return infoSection === activeSection;
   });
 
@@ -270,7 +313,6 @@ export default function BusinessPage() {
         ))}
       </Tabs>
 
-      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -308,7 +350,6 @@ export default function BusinessPage() {
         </DialogContent>
       </Dialog>
 
-      {/* History Dialog */}
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
