@@ -7,15 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, History, Edit2 } from "lucide-react";
 import {
@@ -26,15 +25,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { BusinessInfo, BusinessInfoHistory } from "@db/schema";
 
-type Section = {
-  id: string;
-  title: string;
-  description: string;
-};
-
-const sections: Section[] = [
+const sections = [
   {
     id: "overview",
     title: "Business Overview",
@@ -66,23 +58,17 @@ export default function BusinessPage() {
   const [activeSection, setActiveSection] = useState(sections[0].id);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState("");
-  const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
+  const [selectedInfo, setSelectedInfo] = useState<any>(null);
   const [showHistory, setShowHistory] = useState(false);
-
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
+  // Fetch business info
+  const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery({
     queryKey: ["/api/business-info"],
-    staleTime: Infinity
   });
 
-  const { data: history = [], isLoading: isHistoryLoading } = useQuery<BusinessInfoHistory[]>({
-    queryKey: ["/api/business-info/history", selectedInfo?.id],
-    enabled: showHistory && !!selectedInfo,
-    staleTime: Infinity
-  });
-
+  // Update business info
   const updateBusinessInfo = useMutation({
     mutationFn: async ({ id, content }: { id: number; content: string }) => {
       const response = await fetch(`/api/business-info/${id}`, {
@@ -92,10 +78,7 @@ export default function BusinessPage() {
         credentials: "include",
       });
 
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
+      if (!response.ok) throw new Error(await response.text());
       return response.json();
     },
     onSuccess: () => {
@@ -115,24 +98,27 @@ export default function BusinessPage() {
     },
   });
 
-  const handleEdit = (info: BusinessInfo) => {
+  const handleEdit = (info: any) => {
     setSelectedInfo(info);
     setEditedContent(info.content);
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    if (selectedInfo) {
-      updateBusinessInfo.mutate({
+  const handleSave = async () => {
+    if (!selectedInfo) return;
+    try {
+      await updateBusinessInfo.mutateAsync({
         id: selectedInfo.id,
         content: editedContent,
       });
+    } catch (error) {
+      console.error("Failed to update:", error);
     }
   };
 
   const sectionInfo = sections.find(s => s.id === activeSection);
   const currentSectionData = businessInfo?.find(
-    info => info.section === activeSection
+    (info: any) => info.section === activeSection
   );
 
   if (isBusinessLoading) {
@@ -162,7 +148,7 @@ export default function BusinessPage() {
         </TabsList>
 
         {sections.map((section) => (
-          <TabsContent key={section.id} value={section.id}>
+          <TabsContent key={section.id} value={section.id} forceMount>
             <Card>
               <CardHeader>
                 <CardTitle>{section.title}</CardTitle>
@@ -174,8 +160,10 @@ export default function BusinessPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setSelectedInfo(currentSectionData || null);
-                      setShowHistory(true);
+                      if (currentSectionData) {
+                        setSelectedInfo(currentSectionData);
+                        setShowHistory(true);
+                      }
                     }}
                     disabled={!currentSectionData}
                   >
@@ -184,23 +172,29 @@ export default function BusinessPage() {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleEdit(currentSectionData || {
-                      id: 0,
-                      section: section.id,
-                      title: section.title,
-                      content: "",
-                      metadata: {},
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      userId: 0
-                    })}
+                    onClick={() => {
+                      const info = currentSectionData || {
+                        id: 0,
+                        section: section.id,
+                        title: section.title,
+                        content: "",
+                        metadata: {},
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                        userId: 0
+                      };
+                      handleEdit(info);
+                    }}
                   >
                     <Edit2 className="h-4 w-4 mr-2" />
                     {currentSectionData ? "Edit" : "Add Information"}
                   </Button>
                 </div>
-                <div className="prose prose-sm max-w-none">
-                  {currentSectionData?.content || (
+
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                  {section.id === activeSection && currentSectionData?.content ? (
+                    currentSectionData.content
+                  ) : (
                     <p className="text-muted-foreground italic">
                       No information available yet. Click Add Information to get started.
                     </p>
@@ -212,7 +206,6 @@ export default function BusinessPage() {
         ))}
       </Tabs>
 
-      {/* Edit Dialog */}
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -233,10 +226,7 @@ export default function BusinessPage() {
             <Button variant="outline" onClick={() => setIsEditing(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={updateBusinessInfo.isPending}
-            >
+            <Button onClick={handleSave} disabled={updateBusinessInfo.isPending}>
               {updateBusinessInfo.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -247,46 +237,6 @@ export default function BusinessPage() {
               )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* History Dialog */}
-      <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Change History</DialogTitle>
-            <DialogDescription>
-              View the history of changes made to this section
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {isHistoryLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : history.length === 0 ? (
-              <p className="text-muted-foreground italic">No history available</p>
-            ) : (
-              history.map((entry) => (
-                <Card key={entry.id}>
-                  <CardHeader className="py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        Updated {entry.updatedBy === "ai" ? "by AI" : "manually"} on{" "}
-                        {new Date(entry.updatedAt).toLocaleDateString()}
-                      </div>
-                      {entry.reason && (
-                        <Badge variant="outline">{entry.reason}</Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="prose prose-sm max-w-none">
-                    {entry.content}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
         </DialogContent>
       </Dialog>
     </div>
