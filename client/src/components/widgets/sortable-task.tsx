@@ -14,15 +14,24 @@ export function SortableTask({ task }: SortableTaskProps) {
     setNodeRef,
     transform,
     transition,
+    isDragging,
   } = useSortable({ id: task.id.toString() });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.5 : undefined,
+    cursor: 'grab',
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners}
+      className="touch-manipulation"
+    >
       <TaskCard task={task} />
     </div>
   );

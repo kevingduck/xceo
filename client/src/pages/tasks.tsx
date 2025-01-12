@@ -3,32 +3,32 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { SortableTask } from "@/components/widgets/sortable-task";
+import { TaskCard } from "@/components/widgets/task-card";
 import { Plus } from "lucide-react";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
 import {
   DndContext,
-  DragOverlay,
-  closestCorners,
+  closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragStartEvent,
-  DragEndEvent,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { SortableTask } from "@/components/widgets/sortable-task";
+
+const columns = ["todo", "inProgress", "completed"] as const;
+type ColumnId = typeof columns[number];
 
 export default function Tasks() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [activeId, setActiveId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { createIssue } = useGitHub();
 
@@ -97,28 +97,23 @@ export default function Tasks() {
     }
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id);
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveId(null);
 
     if (!over) return;
 
-    const activeTask = tasks.find(t => t.id.toString() === active.id);
-    const overContainer = over.id;
+    const activeTaskId = parseInt(active.id.toString());
+    const activeTask = tasks.find(t => t.id === activeTaskId);
+    const overId = over.id.toString() as ColumnId;
 
     if (
       activeTask &&
-      typeof overContainer === 'string' &&
-      ['todo', 'inProgress', 'completed'].includes(overContainer) &&
-      activeTask.status !== overContainer
+      columns.includes(overId) &&
+      activeTask.status !== overId
     ) {
-      await updateTask.mutateAsync({
+      updateTask.mutate({
         id: activeTask.id,
-        status: overContainer
+        status: overId
       });
     }
   };
@@ -126,8 +121,6 @@ export default function Tasks() {
   const todoTasks = tasks.filter(t => t.status === "todo");
   const inProgressTasks = tasks.filter(t => t.status === "inProgress");
   const completedTasks = tasks.filter(t => t.status === "completed");
-
-  const getTaskById = (id: string) => tasks.find(task => task.id.toString() === id);
 
   return (
     <div className="space-y-4">
@@ -155,7 +148,9 @@ export default function Tasks() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-              <Button type="submit">Create Task</Button>
+              <Button type="submit" disabled={createTask.isPending}>
+                Create Task
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -163,14 +158,13 @@ export default function Tasks() {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
+        collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div 
             className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            data-droppable="todo"
+            id="todo"
           >
             <h3 className="font-semibold">To Do</h3>
             <SortableContext
@@ -187,7 +181,7 @@ export default function Tasks() {
 
           <div 
             className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            data-droppable="inProgress"
+            id="inProgress"
           >
             <h3 className="font-semibold">In Progress</h3>
             <SortableContext
@@ -204,7 +198,7 @@ export default function Tasks() {
 
           <div 
             className="space-y-2 p-4 bg-background/50 rounded-lg border"
-            data-droppable="completed"
+            id="completed"
           >
             <h3 className="font-semibold">Completed</h3>
             <SortableContext
@@ -219,14 +213,6 @@ export default function Tasks() {
             </SortableContext>
           </div>
         </div>
-
-        <DragOverlay>
-          {activeId ? (
-            <div className="opacity-50">
-              <TaskCard task={getTaskById(activeId)!} />
-            </div>
-          ) : null}
-        </DragOverlay>
       </DndContext>
     </div>
   );
