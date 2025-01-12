@@ -154,7 +154,7 @@ export function registerRoutes(app: Express): Server {
 
       const businessContext = user.businessName ? {
         name: user.businessName,
-        description: user.businessDescription,
+        description: user.businessDescription || '', // Ensure it's always a string
         objectives: user.businessObjectives as string[]
       } : undefined;
 

@@ -33,22 +33,24 @@ export function SidebarNav() {
       <div className="h-14 border-b flex items-center px-4">
         <span className="font-bold text-xl">AI CEO</span>
       </div>
-      
+
       <nav className="p-2">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isActive = location === item.href;
+
           return (
             <Link key={item.href} href={item.href}>
-              <a
+              <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-md text-sm",
+                  "flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer",
                   "hover:bg-accent hover:text-accent-foreground",
-                  location === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                  isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
                 )}
               >
                 <Icon className="h-4 w-4" />
                 {item.title}
-              </a>
+              </div>
             </Link>
           );
         })}
