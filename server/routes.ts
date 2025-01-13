@@ -335,56 +335,86 @@ Culture & Values:
         return res.status(400).send("Please configure your business first");
       }
 
-      // Get most recent sections using Drizzle query builder instead of raw SQL
+      // Define required sections with default content
+      const requiredSections = [
+        {
+          section: "Business Overview",
+          title: "Business Overview",
+          defaultFields: {
+            company_name: {
+              value: user.businessName,
+              type: "text",
+              updatedAt: new Date().toISOString(),
+              updatedBy: "system"
+            }
+          }
+        },
+        {
+          section: "Market Intelligence",
+          title: "Market Intelligence",
+          defaultFields: {}
+        },
+        {
+          section: "Financial Overview",
+          title: "Financial Overview",
+          defaultFields: {}
+        },
+        {
+          section: "Operations",
+          title: "Operations",
+          defaultFields: {}
+        },
+        {
+          section: "Human Capital",
+          title: "Human Capital",
+          defaultFields: {}
+        }
+      ];
+
+      // Get existing sections
       const existingSections = await db
-        .select({ id: businessInfo.id, section: businessInfo.section })
+        .select()
         .from(businessInfo)
         .where(eq(businessInfo.userId, req.user.id));
 
-      // Group by section to get most recent entries
-      const latestSections = Object.values(
-        existingSections.reduce((acc, curr) => {
-          if (!acc[curr.section] || acc[curr.section].id < curr.id) {
-            acc[curr.section] = curr;
-          }
-          return acc;
-        }, {} as Record<string, typeof existingSections[0]>)
-      );
+      // Group by section to get latest entries
+      const latestSectionMap = existingSections.reduce((acc, curr) => {
+        if (!acc[curr.section] || acc[curr.section].createdAt < curr.createdAt) {
+          acc[curr.section] = curr;
+        }
+        return acc;
+      }, {} as Record<string, typeof existingSections[0]>);
 
-      const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
-      const missingSections = requiredSections.filter(
-        section => !latestSections.some(existing => existing.section === section)
-      );
+      // Create missing sections
+      const sectionsToCreate = requiredSections
+        .filter(required => !latestSectionMap[required.section])
+        .map(section => ({
+          section: section.section,
+          title: section.title,
+          content: `Initial content for ${section.section}`,
+          userId: req.user.id,
+          fields: section.defaultFields,
+          metadata: { source: "auto-init" }
+        }));
 
-      if (missingSections.length === 0) {
-        return res.json({
-          message: "All sections already exist",
-          sections: latestSections
-        });
+      let createdSections: typeof existingSections = [];
+      if (sectionsToCreate.length > 0) {
+        createdSections = await db
+          .insert(businessInfo)
+          .values(sectionsToCreate)
+          .returning();
       }
 
-      // Create only the missing sections
-      const sectionsToCreate = missingSections.map(section => ({
-        section,
-        title: section,
-        content: `${section} content initialized for ${user.businessName}`,
-        userId: req.user.id,
-        fields: {},
-        metadata: { source: "auto-init" }
-      }));
-
-      const createdSections = await db
-        .insert(businessInfo)
-        .values(sectionsToCreate)
-        .returning();
-
+      // Combine existing and newly created sections
       const allSections = [
-        ...latestSections,
-        ...createdSections.map(s => ({ id: s.id, section: s.section }))
+        ...Object.values(latestSectionMap),
+        ...createdSections
       ];
 
       res.json({
-        message: "Sections initialized successfully",
+        message: sectionsToCreate.length > 0
+          ? "Sections initialized successfully"
+          : "All sections already exist",
         sections: allSections
       });
     } catch (error) {

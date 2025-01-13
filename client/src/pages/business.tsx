@@ -223,8 +223,8 @@ export default function BusinessPage() {
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [isInitializing, setIsInitializing] = useState(false);
   const initializationAttempted = useRef(false);
+  const initializationCompleted = useRef(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -232,7 +232,7 @@ export default function BusinessPage() {
   // Load business info and templates
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
     queryKey: ["/api/business-info"],
-    staleTime: 0, // Always fetch fresh data
+    staleTime: 0 // Always fetch fresh data
   });
 
   const { data: templates = [], isLoading: isTemplateLoading } = useQuery<BusinessTemplate[]>({
@@ -244,56 +244,7 @@ export default function BusinessPage() {
     enabled: showHistory && !!selectedInfo
   });
 
-  // Field update mutation
-  const updateBusinessFields = useMutation({
-    mutationFn: async ({
-      id,
-      fields
-    }: {
-      id: number;
-      fields: Record<string, any>;
-    }) => {
-      const response = await fetch(`/api/business-info/${id}/fields`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
-        credentials: "include"
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to update field');
-      }
-
-      return response.json();
-    },
-    onSuccess: (data) => {
-      // Immediately update the cache with the new data
-      queryClient.setQueryData(["/api/business-info"], (oldData: any) => {
-        if (!Array.isArray(oldData)) return oldData;
-        return oldData.map(info => info.id === data.id ? data : info);
-      });
-
-      // Then invalidate to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-
-      setEditingField(null);
-      toast({
-        title: "Field updated",
-        description: "The field has been successfully updated"
-      });
-    },
-    onError: (error: Error) => {
-      console.error("Failed to update field:", error);
-      toast({
-        title: "Error updating field",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Add initialization mutation
+  // Initialize sections mutation
   const initializeSections = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/business-info/initialize", {
@@ -308,8 +259,8 @@ export default function BusinessPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-      console.log("Sections initialized:", data);
+      initializationCompleted.current = true;
+      queryClient.setQueryData(["/api/business-info"], data.sections);
     },
     onError: (error: Error) => {
       console.error("Failed to initialize sections:", error);
@@ -330,25 +281,65 @@ export default function BusinessPage() {
           variant: "destructive"
         });
       }
-    },
-    onSettled: () => {
-      setIsInitializing(false);
     }
   });
 
-  // Single initialization effect
+  // Field update mutation
+  const updateBusinessFields = useMutation({
+    mutationFn: async ({
+      id,
+      fields
+    }: {
+      id: number;
+      fields: Record<string, any>;
+    }) => {
+      const response = await fetch(`/api/business-info/${id}/fields`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Update cache immediately
+      queryClient.setQueryData(["/api/business-info"], (oldData: any) => {
+        if (!Array.isArray(oldData)) return oldData;
+        return oldData.map(info => info.id === data.id ? data : info);
+      });
+      setEditingField(null);
+      toast({
+        title: "Field updated",
+        description: "The field has been successfully updated"
+      });
+    },
+    onError: (error: Error) => {
+      console.error("Failed to update field:", error);
+      toast({
+        title: "Error updating field",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Initialize sections once
   useEffect(() => {
     if (!isBusinessLoading && 
-        businessInfo.length === 0 && 
         !initializationAttempted.current && 
-        !isInitializing) {
+        !initializationCompleted.current) {
       console.log("Attempting to initialize business sections");
-      setIsInitializing(true);
       initializationAttempted.current = true;
       initializeSections.mutate();
     }
-  }, [isBusinessLoading, businessInfo.length]);
+  }, [isBusinessLoading]);
 
+  // Handle field save
   const handleFieldSave = async (field: BusinessField, value: any) => {
     if (!currentSection?.title) {
       toast({
@@ -359,16 +350,16 @@ export default function BusinessPage() {
       return;
     }
 
-    try {
-      if (!currentSectionData?.id) {
-        toast({
-          title: "Error",
-          description: "Section not initialized",
-          variant: "destructive"
-        });
-        return;
-      }
+    if (!currentSectionData?.id) {
+      toast({
+        title: "Error",
+        description: "Please wait for section initialization to complete",
+        variant: "destructive"
+      });
+      return;
+    }
 
+    try {
       await updateBusinessFields.mutateAsync({
         id: currentSectionData.id,
         fields: {
@@ -381,12 +372,11 @@ export default function BusinessPage() {
     } catch (error) {
       console.error("Failed to update field:", error);
       toast({
-        title: "Error",
+        title: "Error updating field",
         description: error instanceof Error ? error.message : "Failed to update field",
         variant: "destructive"
       });
     }
-    setEditingField(null);
   };
 
   // Find business info for current section
