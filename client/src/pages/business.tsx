@@ -79,9 +79,9 @@ function formatFieldValue(value: any, type: string) {
 
   switch (type) {
     case 'currency':
-      return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD' 
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
       }).format(Number(value));
     case 'percentage':
       return `${value}%`;
@@ -94,14 +94,14 @@ function formatFieldValue(value: any, type: string) {
   }
 }
 
-function FieldEditor({ 
-  field, 
-  value, 
-  onSave, 
-  onCancel 
-}: { 
-  field: BusinessField; 
-  value: any; 
+function FieldEditor({
+  field,
+  value,
+  onSave,
+  onCancel
+}: {
+  field: BusinessField;
+  value: any;
   onSave: (value: any) => void;
   onCancel: () => void;
 }) {
@@ -197,17 +197,17 @@ function FieldEditor({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         {renderInput()}
-        <Button 
-          size="sm" 
-          variant="ghost" 
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={handleSave}
           className="shrink-0"
         >
           <Check className="h-4 w-4" />
         </Button>
-        <Button 
-          size="sm" 
-          variant="ghost" 
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={onCancel}
           className="shrink-0"
         >
@@ -244,12 +244,12 @@ export default function BusinessPage() {
 
   // Field update mutation
   const updateBusinessFields = useMutation({
-    mutationFn: async ({ 
-      id, 
-      fields 
-    }: { 
-      id: number; 
-      fields: Record<string, any>; 
+    mutationFn: async ({
+      id,
+      fields
+    }: {
+      id: number;
+      fields: Record<string, any>;
     }) => {
       const response = await fetch(`/api/business-info/${id}/fields`, {
         method: "PATCH",
@@ -316,7 +316,7 @@ export default function BusinessPage() {
         toast({
           title: "Configuration Required",
           description: <div>
-            Please configure your business details first. 
+            Please configure your business details first.
             <Link href="/configure-ceo" className="ml-2 underline text-primary">
               Configure Now
             </Link>
@@ -359,61 +359,93 @@ export default function BusinessPage() {
 
     if (!currentSectionData?.id) {
       console.log("Current section not found, attempting to initialize");
-      await initializeSections.mutateAsync();
 
-      // Refresh business info after initialization
-      await queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      try {
+        const result = await initializeSections.mutateAsync();
+        console.log("Initialization result:", result);
 
-      // Get updated section data
-      const updatedBusinessInfo = queryClient.getQueryData(["/api/business-info"]) as BusinessInfo[];
-      const updatedSection = updatedBusinessInfo?.find(
-        info => info.section === currentSection.title
-      );
+        // Refresh business info after initialization
+        await queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
 
-      if (!updatedSection?.id) {
+        // Get updated section data
+        const updatedBusinessInfo = queryClient.getQueryData(["/api/business-info"]) as BusinessInfo[];
+
+        if (!updatedBusinessInfo) {
+          throw new Error("Failed to fetch updated business info");
+        }
+
+        console.log("Updated business info:", updatedBusinessInfo);
+
+        const updatedSection = updatedBusinessInfo.find(
+          info => info.section === currentSection.title
+        );
+
+        console.log("Found section after update:", updatedSection);
+
+        if (!updatedSection?.id) {
+          throw new Error(`Section "${currentSection.title}" not found after initialization`);
+        }
+
+        // Now proceed with the update using the new section
+        await updateBusinessFields.mutateAsync({
+          id: updatedSection.id,
+          fields: {
+            [field.name]: {
+              value,
+              type: field.type
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Failed to initialize and update section:", error);
         toast({
           title: "Error",
-          description: "Failed to initialize section. Please try again or contact support.",
+          description: error instanceof Error ? error.message : "Failed to update section",
           variant: "destructive"
         });
         setEditingField(null);
-        return;
       }
-
-      // Now proceed with the update using the new section
-      await updateBusinessFields.mutateAsync({
-        id: updatedSection.id,
-        fields: {
-          [field.name]: {
-            value,
-            type: field.type
-          }
-        }
-      });
     } else {
       // Normal update flow
-      await updateBusinessFields.mutateAsync({
-        id: currentSectionData.id,
-        fields: {
-          [field.name]: {
-            value,
-            type: field.type
+      try {
+        await updateBusinessFields.mutateAsync({
+          id: currentSectionData.id,
+          fields: {
+            [field.name]: {
+              value,
+              type: field.type
+            }
           }
-        }
-      });
+        });
+      } catch (error) {
+        console.error("Failed to update field:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to update field",
+          variant: "destructive"
+        });
+      }
     }
   };
 
   // Find business info for current section with proper type checking
   const currentSection = sections.find(s => s.id === activeSection);
-  const currentSectionData = businessInfo.find(info => 
+  const currentSectionData = businessInfo.find(info =>
     info.section === currentSection?.title
   );
 
   // Get template for current section
-  const currentTemplate = templates.find(t => 
+  const currentTemplate = templates.find(t =>
     t.name === currentSection?.title
   );
+
+  // Update section selection logic
+  useEffect(() => {
+    console.log("Current section:", currentSection);
+    console.log("Available business info:", businessInfo);
+    console.log("Selected section data:", currentSectionData);
+  }, [activeSection, businessInfo]);
+
 
   if (isBusinessLoading || isTemplateLoading) {
     return (

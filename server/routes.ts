@@ -342,34 +342,38 @@ Culture & Values:
         businessName: user.businessName 
       });
 
-      // Get existing sections
-      const existingSections = await db
-        .select()
-        .from(businessInfo)
-        .where(eq(businessInfo.userId, req.user.id));
+      // Get existing sections, taking only the most recent version of each section
+      const existingSections = await db.execute<{ id: number; section: string }>(
+        `WITH ranked_sections AS (
+          SELECT id, section,
+                 ROW_NUMBER() OVER (PARTITION BY section ORDER BY created_at DESC) as rn
+          FROM business_info
+          WHERE user_id = $1
+        )
+        SELECT id, section
+        FROM ranked_sections
+        WHERE rn = 1`,
+        [req.user.id]
+      );
 
-      console.log("Existing sections:", existingSections.map(s => s.section));
+      console.log("Most recent sections:", existingSections.rows);
 
       const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
       const missingSections = requiredSections.filter(
-        section => !existingSections.some(existing => existing.section === section)
+        section => !existingSections.rows.some(existing => existing.section === section)
       );
 
       console.log("Missing sections to create:", missingSections);
 
       if (missingSections.length === 0) {
         console.log("No missing sections to create");
-        const response = { 
+        return res.json({
           message: "All sections already exist",
-          existingSections: existingSections.map(s => ({
-            id: s.id,
-            section: s.section
-          }))
-        };
-        return res.json(response);
+          existingSections: existingSections.rows
+        });
       }
 
-      // Create missing sections with proper templates
+      // Create only the missing sections
       const sectionsToCreate = missingSections.map(section => ({
         section,
         title: section,
@@ -394,13 +398,15 @@ Culture & Values:
         section: s.section
       })));
 
+      // Return both existing and newly created sections
+      const allSections = [
+        ...existingSections.rows,
+        ...createdSections.map(s => ({ id: s.id, section: s.section }))
+      ];
+
       res.json({
-        message: "Missing sections initialized",
-        initialized: missingSections,
-        sections: createdSections.map(s => ({
-          id: s.id,
-          section: s.section
-        }))
+        message: "Sections initialized successfully",
+        sections: allSections
       });
     } catch (error) {
       console.error("Error initializing business sections:", error);
