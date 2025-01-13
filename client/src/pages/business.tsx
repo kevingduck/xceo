@@ -425,13 +425,9 @@ export default function BusinessPage() {
                             onSave={(value) => {
                               if (!currentSectionData?.id) {
                                 toast({
-                                  title: "Configuration Required",
-                                  description: <div>
-                                    Please configure your business details first. 
-                                    <Link href="/configure-ceo" className="ml-2 underline text-primary">
-                                      Configure Now
-                                    </Link>
-                                  </div>
+                                  title: "Error",
+                                  description: "Could not update field. Please try refreshing the page.",
+                                  variant: "destructive"
                                 });
                                 return;
                               }

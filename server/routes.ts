@@ -290,10 +290,23 @@ Culture & Values:
       ];
 
       // Insert initial business info sections
+      const fieldsWithType = {
+        company_name: {
+          value: businessName,
+          type: "text" as const,
+          updatedAt: new Date().toISOString(),
+          updatedBy: "system" as const
+        }
+      };
+
       await db.insert(businessInfo).values(
         sections.map(section => ({
-          ...section,
-          userId: req.user.id
+          section: section.section,
+          title: section.title,
+          content: section.content,
+          userId: req.user.id,
+          fields: section.section === "Business Overview" ? fieldsWithType : {},
+          metadata: { source: "initial-setup" }
         }))
       );
 
@@ -696,8 +709,7 @@ Culture & Values:
             businessName: true,
             businessDescription: true,
             businessObjectives: true,
-            createdAt: true,
-            updatedAt: true
+            createdAt: true
           }
         })
       ]);
