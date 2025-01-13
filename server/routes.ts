@@ -335,24 +335,31 @@ Culture & Values:
         return res.status(400).send("Please configure your business first");
       }
 
-      // Get most recent sections using direct SQL with proper parameterization
-      const { rows: existingSections } = await db.execute(
-        `SELECT DISTINCT ON (section) id, section 
-         FROM business_info 
-         WHERE user_id = $1 
-         ORDER BY section, created_at DESC`,
-        [req.user.id]
+      // Get most recent sections using Drizzle query builder instead of raw SQL
+      const existingSections = await db
+        .select({ id: businessInfo.id, section: businessInfo.section })
+        .from(businessInfo)
+        .where(eq(businessInfo.userId, req.user.id));
+
+      // Group by section to get most recent entries
+      const latestSections = Object.values(
+        existingSections.reduce((acc, curr) => {
+          if (!acc[curr.section] || acc[curr.section].id < curr.id) {
+            acc[curr.section] = curr;
+          }
+          return acc;
+        }, {} as Record<string, typeof existingSections[0]>)
       );
 
       const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
       const missingSections = requiredSections.filter(
-        section => !existingSections.some(existing => existing.section === section)
+        section => !latestSections.some(existing => existing.section === section)
       );
 
       if (missingSections.length === 0) {
         return res.json({
           message: "All sections already exist",
-          sections: existingSections
+          sections: latestSections
         });
       }
 
@@ -372,7 +379,7 @@ Culture & Values:
         .returning();
 
       const allSections = [
-        ...existingSections,
+        ...latestSections,
         ...createdSections.map(s => ({ id: s.id, section: s.section }))
       ];
 
