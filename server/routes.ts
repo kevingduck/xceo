@@ -317,15 +317,13 @@ Culture & Values:
     }
   });
 
-  // Initialize missing business sections
+  // Update the initialization endpoint
   app.post("/api/business-info/initialize", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
 
     try {
-      console.log("Initializing business sections for user:", req.user.id);
-
       // Get current user's business info
       const [user] = await db
         .select()
@@ -337,39 +335,24 @@ Culture & Values:
         return res.status(400).send("Please configure your business first");
       }
 
-      console.log("Found user business info:", { 
-        userId: user.id, 
-        businessName: user.businessName 
-      });
-
-      // Get existing sections, taking only the most recent version of each section
-      const existingSections = await db.execute<{ id: number; section: string }>(
-        `WITH ranked_sections AS (
-          SELECT id, section,
-                 ROW_NUMBER() OVER (PARTITION BY section ORDER BY created_at DESC) as rn
-          FROM business_info
-          WHERE user_id = $1
-        )
-        SELECT id, section
-        FROM ranked_sections
-        WHERE rn = 1`,
+      // Get most recent sections using direct SQL with proper parameterization
+      const { rows: existingSections } = await db.execute(
+        `SELECT DISTINCT ON (section) id, section 
+         FROM business_info 
+         WHERE user_id = $1 
+         ORDER BY section, created_at DESC`,
         [req.user.id]
       );
 
-      console.log("Most recent sections:", existingSections.rows);
-
       const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
       const missingSections = requiredSections.filter(
-        section => !existingSections.rows.some(existing => existing.section === section)
+        section => !existingSections.some(existing => existing.section === section)
       );
 
-      console.log("Missing sections to create:", missingSections);
-
       if (missingSections.length === 0) {
-        console.log("No missing sections to create");
         return res.json({
           message: "All sections already exist",
-          existingSections: existingSections.rows
+          sections: existingSections
         });
       }
 
@@ -380,27 +363,16 @@ Culture & Values:
         content: `${section} content initialized for ${user.businessName}`,
         userId: req.user.id,
         fields: {},
-        metadata: { 
-          source: "auto-init",
-          createdAt: new Date().toISOString()
-        }
+        metadata: { source: "auto-init" }
       }));
-
-      console.log("Creating sections:", sectionsToCreate);
 
       const createdSections = await db
         .insert(businessInfo)
         .values(sectionsToCreate)
         .returning();
 
-      console.log("Successfully created sections:", createdSections.map(s => ({
-        id: s.id,
-        section: s.section
-      })));
-
-      // Return both existing and newly created sections
       const allSections = [
-        ...existingSections.rows,
+        ...existingSections,
         ...createdSections.map(s => ({ id: s.id, section: s.section }))
       ];
 
@@ -410,7 +382,7 @@ Culture & Values:
       });
     } catch (error) {
       console.error("Error initializing business sections:", error);
-      res.status(500).send(error instanceof Error ? error.message : "Failed to initialize business sections");
+      res.status(500).send("Failed to initialize business sections");
     }
   });
 

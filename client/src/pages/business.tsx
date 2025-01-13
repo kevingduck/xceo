@@ -357,38 +357,23 @@ export default function BusinessPage() {
       return;
     }
 
-    if (!currentSectionData?.id) {
-      console.log("Current section not found, attempting to initialize");
-
-      try {
+    try {
+      // If section doesn't exist, initialize first
+      if (!currentSectionData?.id) {
         const result = await initializeSections.mutateAsync();
-        console.log("Initialization result:", result);
 
-        // Refresh business info after initialization
-        await queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-
-        // Get updated section data
-        const updatedBusinessInfo = queryClient.getQueryData(["/api/business-info"]) as BusinessInfo[];
-
-        if (!updatedBusinessInfo) {
-          throw new Error("Failed to fetch updated business info");
-        }
-
-        console.log("Updated business info:", updatedBusinessInfo);
-
-        const updatedSection = updatedBusinessInfo.find(
-          info => info.section === currentSection.title
+        // Get the newly initialized section
+        const sectionData = result.sections.find(
+          (s: any) => s.section === currentSection.title
         );
 
-        console.log("Found section after update:", updatedSection);
-
-        if (!updatedSection?.id) {
-          throw new Error(`Section "${currentSection.title}" not found after initialization`);
+        if (!sectionData?.id) {
+          throw new Error("Failed to initialize section");
         }
 
-        // Now proceed with the update using the new section
+        // Update the field in the newly initialized section
         await updateBusinessFields.mutateAsync({
-          id: updatedSection.id,
+          id: sectionData.id,
           fields: {
             [field.name]: {
               value,
@@ -396,18 +381,8 @@ export default function BusinessPage() {
             }
           }
         });
-      } catch (error) {
-        console.error("Failed to initialize and update section:", error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to update section",
-          variant: "destructive"
-        });
-        setEditingField(null);
-      }
-    } else {
-      // Normal update flow
-      try {
+      } else {
+        // Normal update for existing section
         await updateBusinessFields.mutateAsync({
           id: currentSectionData.id,
           fields: {
@@ -417,14 +392,17 @@ export default function BusinessPage() {
             }
           }
         });
-      } catch (error) {
-        console.error("Failed to update field:", error);
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to update field",
-          variant: "destructive"
-        });
       }
+
+      setEditingField(null);
+    } catch (error) {
+      console.error("Failed to update field:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update field",
+        variant: "destructive"
+      });
+      setEditingField(null);
     }
   };
 
