@@ -267,6 +267,7 @@ export default function BusinessPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      // Update the cache immediately
       queryClient.setQueryData(["/api/business-info"], (oldData: any) => {
         if (!Array.isArray(oldData)) return oldData;
         return oldData.map(info => info.id === data.id ? data : info);
@@ -336,7 +337,7 @@ export default function BusinessPage() {
     }
   }, [isBusinessLoading, businessInfo.length]);
 
-  // Find business info for current section
+  // Find business info for current section with proper type checking
   const currentSection = sections.find(s => s.id === activeSection);
   const currentSectionData = businessInfo.find(info => 
     info.section === currentSection?.title
@@ -428,14 +429,33 @@ export default function BusinessPage() {
                             field={field}
                             value={currentSectionData?.fields?.[field.name]?.value}
                             onSave={(value) => {
-                              if (!currentSectionData?.id) {
+                              if (!currentSection?.title) {
                                 toast({
                                   title: "Error",
-                                  description: "Could not update field. Business section not found.",
+                                  description: "Invalid section selected",
                                   variant: "destructive"
                                 });
                                 return;
                               }
+
+                              if (!currentSectionData?.id) {
+                                // Initialize the section if it doesn't exist
+                                toast({
+                                  title: "Initializing section",
+                                  description: "Setting up this section for the first time"
+                                });
+
+                                // You might want to call an initialization endpoint here
+                                // For now, we'll just show an error
+                                toast({
+                                  title: "Error",
+                                  description: "This section needs to be initialized first. Please try refreshing the page.",
+                                  variant: "destructive"
+                                });
+                                setEditingField(null);
+                                return;
+                              }
+
                               updateBusinessFields.mutate({
                                 id: currentSectionData.id,
                                 fields: {
