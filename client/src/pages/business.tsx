@@ -279,6 +279,7 @@ export default function BusinessPage() {
       });
     },
     onError: (error: Error) => {
+      console.error("Failed to update field:", error);
       toast({
         title: "Error updating field",
         description: error.message,
@@ -301,14 +302,16 @@ export default function BusinessPage() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Sections initialized:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
       toast({
         title: "Sections initialized",
-        description: "Business sections have been created successfully"
+        description: `Business sections have been created successfully: ${data.sections?.map((s: any) => s.section).join(', ')}`
       });
     },
     onError: (error: Error) => {
+      console.error("Failed to initialize sections:", error);
       if (error.message.includes("configure your business")) {
         toast({
           title: "Configuration Required",
@@ -329,13 +332,77 @@ export default function BusinessPage() {
     }
   });
 
-  // Add initialization check
+  // Add initialization check with retry
   useEffect(() => {
     if (!isBusinessLoading && businessInfo.length === 0 && !initializationAttempted.current) {
+      console.log("Attempting to initialize business sections");
       initializationAttempted.current = true;
       initializeSections.mutate();
+    } else if (!isBusinessLoading && businessInfo.length > 0) {
+      console.log("Business sections found:", businessInfo.map(b => ({
+        id: b.id,
+        section: b.section
+      })));
     }
   }, [isBusinessLoading, businessInfo.length]);
+
+  // Update the field editor save handler
+  const handleFieldSave = async (field: BusinessField, value: any) => {
+    if (!currentSection?.title) {
+      toast({
+        title: "Error",
+        description: "Invalid section selected",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!currentSectionData?.id) {
+      console.log("Current section not found, attempting to initialize");
+      await initializeSections.mutateAsync();
+
+      // Refresh business info after initialization
+      await queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+
+      // Get updated section data
+      const updatedBusinessInfo = queryClient.getQueryData(["/api/business-info"]) as BusinessInfo[];
+      const updatedSection = updatedBusinessInfo?.find(
+        info => info.section === currentSection.title
+      );
+
+      if (!updatedSection?.id) {
+        toast({
+          title: "Error",
+          description: "Failed to initialize section. Please try again or contact support.",
+          variant: "destructive"
+        });
+        setEditingField(null);
+        return;
+      }
+
+      // Now proceed with the update using the new section
+      await updateBusinessFields.mutateAsync({
+        id: updatedSection.id,
+        fields: {
+          [field.name]: {
+            value,
+            type: field.type
+          }
+        }
+      });
+    } else {
+      // Normal update flow
+      await updateBusinessFields.mutateAsync({
+        id: currentSectionData.id,
+        fields: {
+          [field.name]: {
+            value,
+            type: field.type
+          }
+        }
+      });
+    }
+  };
 
   // Find business info for current section with proper type checking
   const currentSection = sections.find(s => s.id === activeSection);
@@ -428,44 +495,7 @@ export default function BusinessPage() {
                           <FieldEditor
                             field={field}
                             value={currentSectionData?.fields?.[field.name]?.value}
-                            onSave={(value) => {
-                              if (!currentSection?.title) {
-                                toast({
-                                  title: "Error",
-                                  description: "Invalid section selected",
-                                  variant: "destructive"
-                                });
-                                return;
-                              }
-
-                              if (!currentSectionData?.id) {
-                                // Initialize the section if it doesn't exist
-                                toast({
-                                  title: "Initializing section",
-                                  description: "Setting up this section for the first time"
-                                });
-
-                                // You might want to call an initialization endpoint here
-                                // For now, we'll just show an error
-                                toast({
-                                  title: "Error",
-                                  description: "This section needs to be initialized first. Please try refreshing the page.",
-                                  variant: "destructive"
-                                });
-                                setEditingField(null);
-                                return;
-                              }
-
-                              updateBusinessFields.mutate({
-                                id: currentSectionData.id,
-                                fields: {
-                                  [field.name]: {
-                                    value,
-                                    type: field.type
-                                  }
-                                }
-                              });
-                            }}
+                            onSave={(value) => handleFieldSave(field, value)}
                             onCancel={() => setEditingField(null)}
                           />
                         ) : (

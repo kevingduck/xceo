@@ -324,6 +324,8 @@ Culture & Values:
     }
 
     try {
+      console.log("Initializing business sections for user:", req.user.id);
+
       // Get current user's business info
       const [user] = await db
         .select()
@@ -335,40 +337,74 @@ Culture & Values:
         return res.status(400).send("Please configure your business first");
       }
 
+      console.log("Found user business info:", { 
+        userId: user.id, 
+        businessName: user.businessName 
+      });
+
       // Get existing sections
       const existingSections = await db
         .select()
         .from(businessInfo)
         .where(eq(businessInfo.userId, req.user.id));
 
+      console.log("Existing sections:", existingSections.map(s => s.section));
+
       const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
       const missingSections = requiredSections.filter(
         section => !existingSections.some(existing => existing.section === section)
       );
 
+      console.log("Missing sections to create:", missingSections);
+
       if (missingSections.length === 0) {
-        return res.json({ message: "All sections already exist" });
+        console.log("No missing sections to create");
+        const response = { 
+          message: "All sections already exist",
+          existingSections: existingSections.map(s => ({
+            id: s.id,
+            section: s.section
+          }))
+        };
+        return res.json(response);
       }
 
-      // Create missing sections
+      // Create missing sections with proper templates
       const sectionsToCreate = missingSections.map(section => ({
         section,
         title: section,
-        content: `${section} content to be defined`,
+        content: `${section} content initialized for ${user.businessName}`,
         userId: req.user.id,
         fields: {},
-        metadata: { source: "auto-init" }
+        metadata: { 
+          source: "auto-init",
+          createdAt: new Date().toISOString()
+        }
       }));
 
-      await db.insert(businessInfo).values(sectionsToCreate);
+      console.log("Creating sections:", sectionsToCreate);
+
+      const createdSections = await db
+        .insert(businessInfo)
+        .values(sectionsToCreate)
+        .returning();
+
+      console.log("Successfully created sections:", createdSections.map(s => ({
+        id: s.id,
+        section: s.section
+      })));
 
       res.json({
         message: "Missing sections initialized",
-        initialized: missingSections
+        initialized: missingSections,
+        sections: createdSections.map(s => ({
+          id: s.id,
+          section: s.section
+        }))
       });
     } catch (error) {
       console.error("Error initializing business sections:", error);
-      res.status(500).send("Failed to initialize business sections");
+      res.status(500).send(error instanceof Error ? error.message : "Failed to initialize business sections");
     }
   });
 
