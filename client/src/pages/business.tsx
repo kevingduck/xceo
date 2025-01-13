@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   Card,
   CardContent,
@@ -222,6 +223,7 @@ export default function BusinessPage() {
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const initializationAttempted = useRef(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -301,17 +303,30 @@ export default function BusinessPage() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
+      if (error.message.includes("configure your business")) {
+        toast({
+          title: "Configuration Required",
+          description: <div>
+            Please configure your business details first. 
+            <Link href="/configure-ceo" className="ml-2 underline text-primary">
+              Configure Now
+            </Link>
+          </div>
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     }
   });
 
   // Add initialization check
   useEffect(() => {
-    if (!isBusinessLoading && businessInfo.length === 0) {
+    if (!isBusinessLoading && businessInfo.length === 0 && !initializationAttempted.current) {
+      initializationAttempted.current = true;
       initializeSections.mutate();
     }
   }, [isBusinessLoading, businessInfo.length]);
@@ -334,13 +349,6 @@ export default function BusinessPage() {
       </div>
     );
   }
-
-  console.log('Debug - Current Section:', {
-    activeSection,
-    currentSectionTitle: currentSection?.title,
-    currentSectionData,
-    businessInfo: businessInfo.map(info => ({ id: info.id, section: info.section }))
-  });
 
   return (
     <div className="space-y-6">
@@ -417,9 +425,13 @@ export default function BusinessPage() {
                             onSave={(value) => {
                               if (!currentSectionData?.id) {
                                 toast({
-                                  title: "Error",
-                                  description: "No business info found for this section. Please configure your business first.",
-                                  variant: "destructive"
+                                  title: "Configuration Required",
+                                  description: <div>
+                                    Please configure your business details first. 
+                                    <Link href="/configure-ceo" className="ml-2 underline text-primary">
+                                      Configure Now
+                                    </Link>
+                                  </div>
                                 });
                                 return;
                               }
