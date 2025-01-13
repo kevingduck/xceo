@@ -392,6 +392,7 @@ Culture & Values:
         return res.status(400).send("Invalid business info ID");
       }
 
+      // Get existing business info
       const [existingInfo] = await db
         .select()
         .from(businessInfo)
@@ -413,12 +414,20 @@ Culture & Values:
         );
       }
 
-      // Get current fields or initialize if none exist
-      const currentFields = existingInfo.fields || {};
+      // Save to history first
+      await db.insert(businessInfoHistory).values({
+        businessInfoId: infoId,
+        userId: req.user.id,
+        content: existingInfo.content,
+        fields: existingInfo.fields || {},
+        updatedBy: 'user',
+        reason: 'Manual field update',
+        metadata: { source: 'field-update' }
+      });
 
       // Update only the specified fields
       const updatedFields = {
-        ...currentFields,
+        ...(existingInfo.fields || {}),
         ...Object.entries(result.data).reduce((acc, [key, value]) => ({
           ...acc,
           [key]: {
@@ -430,16 +439,6 @@ Culture & Values:
         }), {})
       };
 
-      // Save to history first
-      await db.insert(businessInfoHistory).values({
-        businessInfoId: infoId,
-        userId: req.user.id,
-        content: existingInfo.content,
-        fields: existingInfo.fields || {},
-        updatedBy: 'user',
-        metadata: { source: 'field-update' }
-      });
-
       // Update the business info
       const [updatedInfo] = await db
         .update(businessInfo)
@@ -450,10 +449,14 @@ Culture & Values:
         .where(eq(businessInfo.id, infoId))
         .returning();
 
+      if (!updatedInfo) {
+        throw new Error('Failed to update business info fields');
+      }
+
       res.json(updatedInfo);
     } catch (error) {
       console.error("Error updating business info fields:", error);
-      res.status(500).send("Failed to update business info fields");
+      res.status(500).send(error instanceof Error ? error.message : "Failed to update business info fields");
     }
   });
 

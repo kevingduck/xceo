@@ -259,7 +259,8 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const text = await response.text();
+        throw new Error(text || 'Failed to update field');
       }
 
       return response.json();
@@ -274,10 +275,11 @@ export default function BusinessPage() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Error",
+        title: "Error updating field",
         description: error.message,
         variant: "destructive"
       });
+      setEditingField(null);
     }
   });
 
