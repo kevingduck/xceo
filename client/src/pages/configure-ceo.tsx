@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 
 export default function ConfigureCEO() {
   const [businessName, setBusinessName] = useState("");
@@ -48,16 +47,16 @@ export default function ConfigureCEO() {
     onSuccess: () => {
       toast({
         title: "Configuration successful",
-        description: (
-          <div>
-            Your AI CEO is ready to help you manage your business.{" "}
-            <Link href="/business" className="underline text-primary">
-              Go to Business Dashboard
-            </Link>
-          </div>
-        )
+        description: "Your AI CEO settings have been updated successfully"
       });
-      setLocation("/business");
+
+      // If we have history, go back to the previous page
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        // If no history (direct navigation), go to business page
+        setLocation("/business");
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -150,7 +149,7 @@ export default function ConfigureCEO() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setLocation("/business")}
+              onClick={() => window.history.back()}
               className="mr-2"
             >
               Cancel
