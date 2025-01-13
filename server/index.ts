@@ -45,10 +45,11 @@ async function verifyDatabaseConnection() {
   try {
     await db.select().from(users).limit(1);
     log("Database connection verified successfully");
+    return true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown database error";
-    log("Failed to connect to database: " + errorMessage);
-    throw error;
+    log("Database connection error: " + errorMessage);
+    return false;
   }
 }
 
@@ -58,15 +59,26 @@ function verifyEnvironment() {
   const missing = requiredEnvVars.filter(env => !process.env[env]);
 
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    log(`Missing required environment variables: ${missing.join(', ')}`);
+    return false;
   }
+  return true;
 }
 
 (async () => {
   try {
     // Verify environment and database connection before starting
-    verifyEnvironment();
-    await verifyDatabaseConnection();
+    const envOk = verifyEnvironment();
+    if (!envOk) {
+      log("Environment verification failed");
+      process.exit(1);
+    }
+
+    const dbOk = await verifyDatabaseConnection();
+    if (!dbOk) {
+      log("Database verification failed");
+      process.exit(1);
+    }
 
     // Setup authentication before registering routes
     setupAuth(app);
@@ -79,7 +91,7 @@ function verifyEnvironment() {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 
-      console.error("Application error:", {
+      log("Application error:", {
         status,
         message,
         stack: err.stack,
@@ -102,7 +114,7 @@ function verifyEnvironment() {
       log(`Server started successfully on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start server:", error instanceof Error ? error.message : String(error));
+    log("Failed to start server:", error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 })();
