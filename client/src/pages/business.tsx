@@ -223,6 +223,7 @@ export default function BusinessPage() {
   const [selectedInfo, setSelectedInfo] = useState<BusinessInfo | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
   const initializationAttempted = useRef(false);
 
   const { toast } = useToast();
@@ -230,7 +231,8 @@ export default function BusinessPage() {
 
   // Load business info and templates
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
-    queryKey: ["/api/business-info"]
+    queryKey: ["/api/business-info"],
+    staleTime: 0, // Always fetch fresh data
   });
 
   const { data: templates = [], isLoading: isTemplateLoading } = useQuery<BusinessTemplate[]>({
@@ -266,12 +268,15 @@ export default function BusinessPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-      // Update the cache immediately
+      // Immediately update the cache with the new data
       queryClient.setQueryData(["/api/business-info"], (oldData: any) => {
         if (!Array.isArray(oldData)) return oldData;
         return oldData.map(info => info.id === data.id ? data : info);
       });
+
+      // Then invalidate to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+
       setEditingField(null);
       toast({
         title: "Field updated",
@@ -303,12 +308,8 @@ export default function BusinessPage() {
       return response.json();
     },
     onSuccess: (data) => {
-      console.log("Sections initialized:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
-      toast({
-        title: "Sections initialized",
-        description: `Business sections have been created successfully: ${data.sections?.map((s: any) => s.section).join(', ')}`
-      });
+      console.log("Sections initialized:", data);
     },
     onError: (error: Error) => {
       console.error("Failed to initialize sections:", error);
@@ -329,24 +330,25 @@ export default function BusinessPage() {
           variant: "destructive"
         });
       }
+    },
+    onSettled: () => {
+      setIsInitializing(false);
     }
   });
 
-  // Add initialization check with retry
+  // Single initialization effect
   useEffect(() => {
-    if (!isBusinessLoading && businessInfo.length === 0 && !initializationAttempted.current) {
+    if (!isBusinessLoading && 
+        businessInfo.length === 0 && 
+        !initializationAttempted.current && 
+        !isInitializing) {
       console.log("Attempting to initialize business sections");
+      setIsInitializing(true);
       initializationAttempted.current = true;
       initializeSections.mutate();
-    } else if (!isBusinessLoading && businessInfo.length > 0) {
-      console.log("Business sections found:", businessInfo.map(b => ({
-        id: b.id,
-        section: b.section
-      })));
     }
   }, [isBusinessLoading, businessInfo.length]);
 
-  // Update the field editor save handler
   const handleFieldSave = async (field: BusinessField, value: any) => {
     if (!currentSection?.title) {
       toast({
@@ -358,43 +360,24 @@ export default function BusinessPage() {
     }
 
     try {
-      // If section doesn't exist, initialize first
       if (!currentSectionData?.id) {
-        const result = await initializeSections.mutateAsync();
-
-        // Get the newly initialized section
-        const sectionData = result.sections.find(
-          (s: any) => s.section === currentSection.title
-        );
-
-        if (!sectionData?.id) {
-          throw new Error("Failed to initialize section");
-        }
-
-        // Update the field in the newly initialized section
-        await updateBusinessFields.mutateAsync({
-          id: sectionData.id,
-          fields: {
-            [field.name]: {
-              value,
-              type: field.type
-            }
-          }
+        toast({
+          title: "Error",
+          description: "Section not initialized",
+          variant: "destructive"
         });
-      } else {
-        // Normal update for existing section
-        await updateBusinessFields.mutateAsync({
-          id: currentSectionData.id,
-          fields: {
-            [field.name]: {
-              value,
-              type: field.type
-            }
-          }
-        });
+        return;
       }
 
-      setEditingField(null);
+      await updateBusinessFields.mutateAsync({
+        id: currentSectionData.id,
+        fields: {
+          [field.name]: {
+            value,
+            type: field.type
+          }
+        }
+      });
     } catch (error) {
       console.error("Failed to update field:", error);
       toast({
@@ -402,11 +385,11 @@ export default function BusinessPage() {
         description: error instanceof Error ? error.message : "Failed to update field",
         variant: "destructive"
       });
-      setEditingField(null);
     }
+    setEditingField(null);
   };
 
-  // Find business info for current section with proper type checking
+  // Find business info for current section
   const currentSection = sections.find(s => s.id === activeSection);
   const currentSectionData = businessInfo.find(info =>
     info.section === currentSection?.title
@@ -416,14 +399,6 @@ export default function BusinessPage() {
   const currentTemplate = templates.find(t =>
     t.name === currentSection?.title
   );
-
-  // Update section selection logic
-  useEffect(() => {
-    console.log("Current section:", currentSection);
-    console.log("Available business info:", businessInfo);
-    console.log("Selected section data:", currentSectionData);
-  }, [activeSection, businessInfo]);
-
 
   if (isBusinessLoading || isTemplateLoading) {
     return (
