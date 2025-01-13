@@ -32,7 +32,12 @@ function ProtectedRoutes() {
     return <AuthPage />;
   }
 
-  // Show configuration page if business details aren't set
+  // Allow direct access to configure-ceo page
+  if (window.location.pathname === "/configure-ceo") {
+    return <ConfigureCEO />;
+  }
+
+  // Show configuration page if business details aren't set and not already on configure-ceo page
   if (!user.businessName) {
     return <ConfigureCEO />;
   }
@@ -45,6 +50,7 @@ function ProtectedRoutes() {
         <Route path="/tasks" component={Tasks} />
         <Route path="/business" component={Business} />
         <Route path="/analytics" component={Analytics} />
+        <Route path="/configure-ceo" component={ConfigureCEO} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>

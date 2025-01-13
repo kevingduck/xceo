@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/use-user";
 import { useLocation } from "wouter";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 export default function ConfigureCEO() {
   const [businessName, setBusinessName] = useState("");
@@ -15,6 +16,15 @@ export default function ConfigureCEO() {
   const { user } = useUser();
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
+
+  // Initialize form with existing data if available
+  useEffect(() => {
+    if (user?.businessName) {
+      setBusinessName(user.businessName);
+      setBusinessDescription(user.businessDescription || "");
+      setObjectives((user.businessObjectives || []).join("\n"));
+    }
+  }, [user]);
 
   const configureCEO = useMutation({
     mutationFn: async (data: {
@@ -38,9 +48,16 @@ export default function ConfigureCEO() {
     onSuccess: () => {
       toast({
         title: "Configuration successful",
-        description: "Your AI CEO is ready to help you manage your business"
+        description: (
+          <div>
+            Your AI CEO is ready to help you manage your business.{" "}
+            <Link href="/business" className="underline text-primary">
+              Go to Business Dashboard
+            </Link>
+          </div>
+        )
       });
-      setLocation("/chat"); 
+      setLocation("/business");
     },
     onError: (error: Error) => {
       toast({
@@ -67,6 +84,15 @@ export default function ConfigureCEO() {
       .map(o => o.trim())
       .filter(Boolean);
 
+    if (objectivesList.length === 0) {
+      toast({
+        title: "Missing objectives",
+        description: "Please add at least one business objective",
+        variant: "destructive"
+      });
+      return;
+    }
+
     await configureCEO.mutateAsync({
       businessName,
       businessDescription,
@@ -78,7 +104,7 @@ export default function ConfigureCEO() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/20 p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Configure Your AI CEO</CardTitle>
+          <CardTitle>{user?.businessName ? "Update" : "Configure"} Your AI CEO</CardTitle>
           <CardDescription>
             Tell me about your business and what you'd like me to help you achieve
           </CardDescription>
@@ -114,19 +140,27 @@ export default function ConfigureCEO() {
               />
               <p className="text-sm text-muted-foreground">
                 Examples:
-                - Increase revenue by 20% this year
-                - Launch 2 new product lines
-                - Expand to international markets
+                <br />- Increase revenue by 20% this year
+                <br />- Launch 2 new product lines
+                <br />- Expand to international markets
               </p>
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLocation("/business")}
+              className="mr-2"
+            >
+              Cancel
+            </Button>
             <Button 
               type="submit" 
-              className="w-full"
+              className="flex-1"
               disabled={configureCEO.isPending}
             >
-              {configureCEO.isPending ? "Configuring..." : "Configure AI CEO"}
+              {configureCEO.isPending ? "Saving..." : (user?.businessName ? "Update" : "Configure") + " AI CEO"}
             </Button>
           </CardFooter>
         </form>
