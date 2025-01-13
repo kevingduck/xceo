@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
 
 export default function ConfigureCEO() {
   const [businessName, setBusinessName] = useState("");
@@ -15,7 +14,7 @@ export default function ConfigureCEO() {
   const [objectives, setObjectives] = useState("");
   const { user } = useUser();
   const { toast } = useToast();
-  const [_, setLocation] = useLocation();
+  const [_, navigate] = useLocation();
 
   // Initialize form with existing data if available
   useEffect(() => {
@@ -48,16 +47,12 @@ export default function ConfigureCEO() {
     onSuccess: () => {
       toast({
         title: "Configuration successful",
-        description: (
-          <div>
-            Your AI CEO is ready to help you manage your business.{" "}
-            <Link href="/business" className="underline text-primary">
-              Go to Business Dashboard
-            </Link>
-          </div>
-        )
+        description: "Your AI CEO is ready to help you manage your business"
       });
-      setLocation("/business");
+      // Navigate to dashboard after a short delay to ensure toast is visible
+      setTimeout(() => {
+        navigate("/");
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({
@@ -150,7 +145,7 @@ export default function ConfigureCEO() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setLocation("/business")}
+              onClick={() => navigate("/")}
               className="mr-2"
             >
               Cancel
