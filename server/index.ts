@@ -3,33 +3,31 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { users } from "@db/schema";
-import { setupAuth } from "./auth";
+import passport from "passport";
+import session from "express-session";
+import MemoryStore from "memorystore";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Verify database connection on startup
-async function verifyDatabaseConnection() {
-  try {
-    // Test database connection with a simple query
-    await db.select().from(users).limit(1);
-    log("Database connection verified successfully");
-  } catch (error) {
-    log("Failed to connect to database:", error);
-    throw error;
-  }
-}
+// Setup session handling
+const SessionStore = MemoryStore(session);
+app.use(
+  session({
+    cookie: { maxAge: 86400000 },
+    store: new SessionStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    }),
+    resave: false,
+    secret: process.env.SESSION_SECRET || 'keyboard cat',
+    saveUninitialized: false,
+  })
+);
 
-// Verify required environment variables
-function verifyEnvironment() {
-  const requiredEnvVars = ['DATABASE_URL', 'ANTHROPIC_API_KEY'];
-  const missing = requiredEnvVars.filter(env => !process.env[env]);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
-  }
-}
+// Initialize passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -61,35 +59,54 @@ app.use((req, res, next) => {
   next();
 });
 
+// Verify database connection on startup
+async function verifyDatabaseConnection() {
+  try {
+    await db.select().from(users).limit(1);
+    log("Database connection verified successfully");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown database error";
+    log("Failed to connect to database: " + errorMessage);
+    throw error;
+  }
+}
+
+// Verify required environment variables
+function verifyEnvironment() {
+  const requiredEnvVars = ['DATABASE_URL', 'ANTHROPIC_API_KEY'];
+  const missing = requiredEnvVars.filter(env => !process.env[env]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
 (async () => {
   try {
     // Verify environment and database connection before starting
     verifyEnvironment();
     await verifyDatabaseConnection();
 
-    // Setup authentication first
-    setupAuth(app);
-
-    // Then register all other routes
+    // Register routes
     const server = registerRoutes(app);
 
-    // Global error handler with better logging
+    // Error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 
-      // Log the full error for debugging
+      // Log the error with safe stringification
       console.error("Application error:", {
         status,
         message,
         stack: err.stack,
-        originalError: err
+        error: err instanceof Error ? err.message : String(err)
       });
 
       res.status(status).json({ message });
     });
 
-    // Setup Vite for development
+    // Setup vite in development mode
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
@@ -101,7 +118,7 @@ app.use((req, res, next) => {
       log(`Server started successfully on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    console.error("Failed to start server:", error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 })();

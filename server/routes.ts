@@ -163,7 +163,7 @@ export function registerRoutes(app: Express): Server {
         }
       };
 
-      const sections = [
+      const sectionsToInsert = [
         {
           section: "Business Overview",
           title: "Business Overview",
@@ -204,9 +204,9 @@ export function registerRoutes(app: Express): Server {
           fields: {} as BusinessInfoFields,
           metadata: { source: "initial-setup" }
         }
-      ] as const;
+      ];
 
-      await db.insert(businessInfo).values(sections);
+      await db.insert(businessInfo).values(sectionsToInsert);
 
       res.json({ message: "CEO configured successfully" });
     } catch (error) {

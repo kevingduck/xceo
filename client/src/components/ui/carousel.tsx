@@ -135,7 +135,7 @@ const Carousel = React.forwardRef<
         <div
           ref={ref}
           onKeyDownCapture={handleKeyDown}
-          className={cn("relative", className)}
+          className={cn("relative w-full touch-pan-y", className)}
           role="region"
           aria-roledescription="carousel"
           {...props}
@@ -182,7 +182,7 @@ const CarouselItem = React.forwardRef<
       role="group"
       aria-roledescription="slide"
       className={cn(
-        "min-w-0 shrink-0 grow-0 basis-full",
+        "min-w-0 shrink-0 grow-0 basis-full px-4 sm:basis-1/2 lg:basis-1/3",
         orientation === "horizontal" ? "pl-4" : "pt-4",
         className
       )}
@@ -204,17 +204,18 @@ const CarouselPrevious = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-8 w-8 md:h-10 md:w-10 rounded-full touch-manipulation",
+        "absolute h-8 w-8 rounded-full touch-manipulation",
         orientation === "horizontal"
-          ? "-left-4 md:-left-12 top-1/2 -translate-y-1/2"
+          ? "left-2 top-1/2 -translate-y-1/2 md:left-4"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
+        !canScrollPrev && "hidden",
         className
       )}
       disabled={!canScrollPrev}
       onClick={scrollPrev}
       {...props}
     >
-      <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
+      <ArrowLeft className="h-4 w-4" />
       <span className="sr-only">Previous slide</span>
     </Button>
   )
@@ -233,17 +234,18 @@ const CarouselNext = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-8 w-8 md:h-10 md:w-10 rounded-full touch-manipulation",
+        "absolute h-8 w-8 rounded-full touch-manipulation",
         orientation === "horizontal"
-          ? "-right-4 md:-right-12 top-1/2 -translate-y-1/2"
+          ? "right-2 top-1/2 -translate-y-1/2 md:right-4"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
+        !canScrollNext && "hidden",
         className
       )}
       disabled={!canScrollNext}
       onClick={scrollNext}
       {...props}
     >
-      <ArrowRight className="h-4 w-4 md:h-5 md:w-5" />
+      <ArrowRight className="h-4 w-4" />
       <span className="sr-only">Next slide</span>
     </Button>
   )
