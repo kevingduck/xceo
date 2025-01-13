@@ -279,20 +279,15 @@ export default function BusinessPage() {
     }
   });
 
-  // Get server section name from active tab
-  const getServerSection = (tabId: string): string => {
-    const section = sections.find(s => s.id === tabId);
-    return section?.title || '';
-  };
-
   // Find business info for current section
+  const currentSection = sections.find(s => s.id === activeSection);
   const currentSectionData = businessInfo.find(info => 
-    info.section === getServerSection(activeSection)
+    info.section === currentSection?.title
   );
 
   // Get template for current section
   const currentTemplate = templates.find(t => 
-    t.name === getServerSection(activeSection)
+    t.name === currentSection?.title
   );
 
   if (isBusinessLoading || isTemplateLoading) {
@@ -302,6 +297,13 @@ export default function BusinessPage() {
       </div>
     );
   }
+
+  console.log('Debug - Current Section:', {
+    activeSection,
+    currentSectionTitle: currentSection?.title,
+    currentSectionData,
+    businessInfo: businessInfo.map(info => ({ id: info.id, section: info.section }))
+  });
 
   return (
     <div className="space-y-6">
@@ -337,7 +339,6 @@ export default function BusinessPage() {
                       setSelectedInfo(currentSectionData || null);
                       setShowHistory(true);
                     }}
-                    disabled={!currentSectionData}
                   >
                     <History className="h-4 w-4 mr-2" />
                     View History
@@ -380,7 +381,7 @@ export default function BusinessPage() {
                               if (!currentSectionData?.id) {
                                 toast({
                                   title: "Error",
-                                  description: "No business info found for this section",
+                                  description: "No business info found for this section. Please configure your business first.",
                                   variant: "destructive"
                                 });
                                 return;
