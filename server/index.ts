@@ -3,32 +3,13 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { users } from "@db/schema";
-import passport from "passport";
-import session from "express-session";
-import MemoryStore from "memorystore";
+import { setupAuth } from "./auth";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Setup session handling
-const SessionStore = MemoryStore(session);
-app.use(
-  session({
-    cookie: { maxAge: 86400000 },
-    store: new SessionStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
-    }),
-    resave: false,
-    secret: process.env.SESSION_SECRET || 'keyboard cat',
-    saveUninitialized: false,
-  })
-);
-
-// Initialize passport
-app.use(passport.initialize());
-app.use(passport.session());
-
+// Basic request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -87,7 +68,10 @@ function verifyEnvironment() {
     verifyEnvironment();
     await verifyDatabaseConnection();
 
-    // Register routes
+    // Setup authentication before registering routes
+    setupAuth(app);
+
+    // Register routes after auth setup
     const server = registerRoutes(app);
 
     // Error handling middleware
@@ -95,7 +79,6 @@ function verifyEnvironment() {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 
-      // Log the error with safe stringification
       console.error("Application error:", {
         status,
         message,
@@ -106,13 +89,14 @@ function verifyEnvironment() {
       res.status(status).json({ message });
     });
 
-    // Setup vite in development mode
+    // Setup vite in development mode after all other middleware
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
+    // Start the server
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);

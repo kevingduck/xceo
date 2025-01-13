@@ -6,6 +6,7 @@ interface GridProps extends React.HTMLAttributes<HTMLDivElement> {
   gap?: number
   rowGap?: number
   colGap?: number
+  mobileRows?: boolean
 }
 
 export function Grid({
@@ -14,6 +15,7 @@ export function Grid({
   gap,
   rowGap,
   colGap,
+  mobileRows = false,
   children,
   ...props
 }: GridProps) {
@@ -21,16 +23,18 @@ export function Grid({
     <div
       className={cn(
         "grid w-full",
-        // Default responsive columns
+        // Enhanced responsive columns with better mobile support
         {
           'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3': cols === 3,
           'grid-cols-1 sm:grid-cols-2': cols === 2,
           'grid-cols-1': cols === 1,
         },
-        // Gap utilities
+        // Mobile-first gap utilities
         gap && `gap-${gap}`,
         rowGap && `gap-y-${rowGap}`,
         colGap && `gap-x-${colGap}`,
+        // Force single column on mobile if mobileRows is true
+        mobileRows && 'grid-cols-1 sm:grid-cols-inherit',
         className
       )}
       {...props}
@@ -42,11 +46,13 @@ export function Grid({
 
 interface GridItemProps extends React.HTMLAttributes<HTMLDivElement> {
   span?: number
+  mobileFull?: boolean
 }
 
 export function GridItem({
   className,
   span,
+  mobileFull = false,
   children,
   ...props
 }: GridItemProps) {
@@ -54,6 +60,8 @@ export function GridItem({
     <div
       className={cn(
         span && `col-span-${span}`,
+        // Full width on mobile if mobileFull is true
+        mobileFull && 'col-span-full sm:col-span-inherit',
         className
       )}
       {...props}
