@@ -259,14 +259,18 @@ export default function BusinessPage() {
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Failed to update field');
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to update field');
       }
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      queryClient.setQueryData(["/api/business-info"], (oldData: any) => {
+        if (!Array.isArray(oldData)) return oldData;
+        return oldData.map(info => info.id === data.id ? data : info);
+      });
       setEditingField(null);
       toast({
         title: "Field updated",
@@ -279,7 +283,6 @@ export default function BusinessPage() {
         description: error.message,
         variant: "destructive"
       });
-      setEditingField(null);
     }
   });
 
@@ -428,7 +431,7 @@ export default function BusinessPage() {
                               if (!currentSectionData?.id) {
                                 toast({
                                   title: "Error",
-                                  description: "Could not update field. Please try refreshing the page.",
+                                  description: "Could not update field. Business section not found.",
                                   variant: "destructive"
                                 });
                                 return;
@@ -447,7 +450,12 @@ export default function BusinessPage() {
                           />
                         ) : (
                           <div className="bg-muted rounded-md p-2">
-                            {currentSectionData?.fields?.[field.name] ? (
+                            {updateBusinessFields.isPending && editingField === field.name ? (
+                              <div className="flex items-center space-x-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">Updating...</span>
+                              </div>
+                            ) : currentSectionData?.fields?.[field.name] ? (
                               <p className="text-sm">
                                 {formatFieldValue(
                                   currentSectionData.fields[field.name].value,
