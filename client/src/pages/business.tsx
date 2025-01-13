@@ -7,16 +7,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, History, Edit2, Check, X } from "lucide-react";
 import {
@@ -34,6 +33,7 @@ interface Section {
   description: string;
 }
 
+// Map client-side section IDs to server-side section names
 const sections: Section[] = [
   {
     id: "overview",
@@ -62,19 +62,6 @@ const sections: Section[] = [
   }
 ];
 
-const sectionMappings: Record<string, string> = {
-  'overview': 'Business Overview',
-  'finance': 'Financial Overview', 
-  'market': 'Market Intelligence',
-  'humanCapital': 'Human Capital',
-  'operations': 'Operations',
-  'Business Overview': 'overview',
-  'Financial Overview': 'finance',
-  'Market Intelligence': 'market',
-  'Human Capital': 'humanCapital',
-  'Operations': 'operations'
-};
-
 interface BusinessField {
   name: string;
   type: 'text' | 'number' | 'currency' | 'percentage' | 'date' | 'list';
@@ -83,24 +70,10 @@ interface BusinessField {
 
 interface BusinessTemplate {
   name: string;
-  template: string;
   fields: BusinessField[];
 }
 
-const getSectionFromTitle = (title: string): string => {
-  if (title in sectionMappings) {
-    return sectionMappings[title];
-  }
-
-  const section = sections.find(s => 
-    s.title === title || 
-    s.id === title.toLowerCase().replace(/\s+/g, '')
-  );
-
-  return section?.id || 'overview';
-};
-
-const formatFieldValue = (value: any, type: string) => {
+function formatFieldValue(value: any, type: string) {
   if (value === null || value === undefined) return '-';
 
   switch (type) {
@@ -114,94 +87,129 @@ const formatFieldValue = (value: any, type: string) => {
     case 'date':
       return new Date(value).toLocaleDateString();
     case 'list':
-      return Array.isArray(value) ? value.join(', ') : value;
+      return Array.isArray(value) ? value.join('\n') : value;
     default:
       return value.toString();
   }
-};
+}
 
 function FieldEditor({ 
   field, 
   value, 
-  onSave,
-  onCancel
+  onSave, 
+  onCancel 
 }: { 
   field: BusinessField; 
   value: any; 
   onSave: (value: any) => void;
   onCancel: () => void;
 }) {
-  const [currentValue, setCurrentValue] = useState(value);
+  const [currentValue, setCurrentValue] = useState(() => {
+    if (field.type === 'list' && Array.isArray(value)) {
+      return value.join('\n');
+    }
+    return value ?? '';
+  });
 
   const handleSave = () => {
-    onSave(currentValue);
+    let processedValue = currentValue;
+
+    switch (field.type) {
+      case 'list':
+        processedValue = currentValue.split('\n').filter(Boolean);
+        break;
+      case 'number':
+      case 'currency':
+      case 'percentage':
+        processedValue = currentValue === '' ? null : Number(currentValue);
+        if (isNaN(processedValue)) {
+          processedValue = null;
+        }
+        break;
+      default:
+        processedValue = currentValue || null;
+    }
+
+    onSave(processedValue);
+  };
+
+  const renderInput = () => {
+    switch (field.type) {
+      case 'text':
+        return (
+          <Input
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            placeholder={field.description}
+            className="flex-1"
+          />
+        );
+      case 'number':
+      case 'currency':
+        return (
+          <Input
+            type="number"
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            placeholder={field.description}
+            step={field.type === 'currency' ? '0.01' : '1'}
+            className="flex-1"
+          />
+        );
+      case 'percentage':
+        return (
+          <Input
+            type="number"
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            placeholder={field.description}
+            min="0"
+            max="100"
+            step="0.1"
+            className="flex-1"
+          />
+        );
+      case 'date':
+        return (
+          <Input
+            type="date"
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            className="flex-1"
+          />
+        );
+      case 'list':
+        return (
+          <Textarea
+            value={currentValue}
+            onChange={(e) => setCurrentValue(e.target.value)}
+            placeholder={field.description}
+            className="flex-1 min-h-[100px]"
+          />
+        );
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        {(() => {
-          switch (field.type) {
-            case 'text':
-              return (
-                <Input
-                  value={currentValue || ''}
-                  onChange={(e) => setCurrentValue(e.target.value)}
-                  placeholder={field.description}
-                  className="flex-1"
-                />
-              );
-            case 'number':
-            case 'currency':
-              return (
-                <Input
-                  type="number"
-                  value={currentValue || ''}
-                  onChange={(e) => setCurrentValue(Number(e.target.value))}
-                  placeholder={field.description}
-                  step={field.type === 'currency' ? '0.01' : '1'}
-                  className="flex-1"
-                />
-              );
-            case 'percentage':
-              return (
-                <Input
-                  type="number"
-                  value={currentValue || ''}
-                  onChange={(e) => setCurrentValue(Number(e.target.value))}
-                  placeholder={field.description}
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  className="flex-1"
-                />
-              );
-            case 'date':
-              return (
-                <Input
-                  type="date"
-                  value={currentValue || ''}
-                  onChange={(e) => setCurrentValue(e.target.value)}
-                  className="flex-1"
-                />
-              );
-            case 'list':
-              return (
-                <Textarea
-                  value={Array.isArray(currentValue) ? currentValue.join('\n') : currentValue || ''}
-                  onChange={(e) => setCurrentValue(e.target.value.split('\n').filter(Boolean))}
-                  placeholder={field.description}
-                  className="flex-1"
-                />
-              );
-            default:
-              return null;
-          }
-        })()}
-        <Button size="sm" variant="ghost" onClick={handleSave}>
+        {renderInput()}
+        <Button 
+          size="sm" 
+          variant="ghost" 
+          onClick={handleSave}
+          className="shrink-0"
+        >
           <Check className="h-4 w-4" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        <Button 
+          size="sm" 
+          variant="ghost" 
+          onClick={onCancel}
+          className="shrink-0"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -218,6 +226,7 @@ export default function BusinessPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Load business info and templates
   const { data: businessInfo = [], isLoading: isBusinessLoading } = useQuery<BusinessInfo[]>({
     queryKey: ["/api/business-info"]
   });
@@ -231,6 +240,7 @@ export default function BusinessPage() {
     enabled: showHistory && !!selectedInfo
   });
 
+  // Field update mutation
   const updateBusinessFields = useMutation({
     mutationFn: async ({ 
       id, 
@@ -269,26 +279,21 @@ export default function BusinessPage() {
     }
   });
 
-  const handleFieldUpdate = (infoId: number, fieldName: string, value: any, type: string) => {
-    updateBusinessFields.mutate({
-      id: infoId,
-      fields: {
-        [fieldName]: {
-          value,
-          type
-        }
-      }
-    });
+  // Get server section name from active tab
+  const getServerSection = (tabId: string): string => {
+    const section = sections.find(s => s.id === tabId);
+    return section?.title || '';
   };
 
   // Find business info for current section
-  const currentSectionData = businessInfo.find(info => {
-    const infoSection = getSectionFromTitle(info.section);
-    return infoSection === activeSection;
-  });
+  const currentSectionData = businessInfo.find(info => 
+    info.section === getServerSection(activeSection)
+  );
 
   // Get template for current section
-  const currentTemplate = templates.find(t => t.name === sectionMappings[activeSection]);
+  const currentTemplate = templates.find(t => 
+    t.name === getServerSection(activeSection)
+  );
 
   if (isBusinessLoading || isTemplateLoading) {
     return (
@@ -339,16 +344,17 @@ export default function BusinessPage() {
                   </Button>
                 </div>
 
-                {currentTemplate && currentSectionData && (
+                {currentTemplate?.fields && (
                   <div className="grid gap-6">
                     {currentTemplate.fields.map((field) => (
                       <div key={field.name} className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div>
                             <label className="text-sm font-medium">
-                              {field.name.split('_').map(word => 
-                                word.charAt(0).toUpperCase() + word.slice(1)
-                              ).join(' ')}
+                              {field.name
+                                .split('_')
+                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ')}
                             </label>
                             <p className="text-xs text-muted-foreground">
                               {field.description}
@@ -359,6 +365,7 @@ export default function BusinessPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => setEditingField(field.name)}
+                              className="shrink-0"
                             >
                               <Edit2 className="h-3 w-3" />
                             </Button>
@@ -368,13 +375,31 @@ export default function BusinessPage() {
                         {editingField === field.name ? (
                           <FieldEditor
                             field={field}
-                            value={currentSectionData.fields?.[field.name]?.value}
-                            onSave={(value) => handleFieldUpdate(currentSectionData.id, field.name, value, field.type)}
+                            value={currentSectionData?.fields?.[field.name]?.value}
+                            onSave={(value) => {
+                              if (!currentSectionData?.id) {
+                                toast({
+                                  title: "Error",
+                                  description: "No business info found for this section",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+                              updateBusinessFields.mutate({
+                                id: currentSectionData.id,
+                                fields: {
+                                  [field.name]: {
+                                    value,
+                                    type: field.type
+                                  }
+                                }
+                              });
+                            }}
                             onCancel={() => setEditingField(null)}
                           />
                         ) : (
                           <div className="bg-muted rounded-md p-2">
-                            {currentSectionData.fields?.[field.name] ? (
+                            {currentSectionData?.fields?.[field.name] ? (
                               <p className="text-sm">
                                 {formatFieldValue(
                                   currentSectionData.fields[field.name].value,
@@ -421,12 +446,9 @@ export default function BusinessPage() {
                       <div className="text-sm text-muted-foreground">
                         Updated on {new Date(entry.updatedAt).toLocaleDateString()}
                       </div>
-                      {entry.reason && (
-                        <Badge variant="outline">{entry.reason}</Badge>
-                      )}
                     </div>
                   </CardHeader>
-                  <CardContent className="prose prose-sm max-w-none whitespace-pre-wrap">
+                  <CardContent className="prose prose-sm max-w-none">
                     {entry.content}
                   </CardContent>
                 </Card>
