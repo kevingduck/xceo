@@ -349,9 +349,9 @@ Culture & Values:
 
       await db.insert(businessInfo).values(sectionsToCreate);
 
-      res.json({ 
-        message: "Missing sections initialized", 
-        initialized: missingSections 
+      res.json({
+        message: "Missing sections initialized",
+        initialized: missingSections
       });
     } catch (error) {
       console.error("Error initializing business sections:", error);
@@ -625,7 +625,102 @@ Culture & Values:
     }
   });
 
-  // Add these routes after the existing GET routes for admin
+  // Add these routes before the end of registerRoutes function
+  app.post("/api/settings/clear-data", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Delete all user data in order of dependencies
+      await Promise.all([
+        db.delete(tasks).where(eq(tasks.userId, req.user.id)),
+        db.delete(chatMessages).where(eq(chatMessages.userId, req.user.id)),
+        db.delete(analytics).where(eq(analytics.userId, req.user.id)),
+        db.delete(businessInfoHistory).where(eq(businessInfoHistory.userId, req.user.id)),
+        db.delete(businessInfo).where(eq(businessInfo.userId, req.user.id))
+      ]);
+
+      // Reset user's business configuration
+      await db
+        .update(users)
+        .set({
+          businessName: null,
+          businessDescription: null,
+          businessObjectives: null
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.json({ message: "All data cleared successfully" });
+    } catch (error) {
+      console.error("Error clearing data:", error);
+      res.status(500).send("Failed to clear data");
+    }
+  });
+
+  app.get("/api/settings/export-data", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Fetch all user data
+      const [
+        userTasks,
+        userChats,
+        userAnalytics,
+        userBusinessInfo,
+        userBusinessInfoHistory,
+        userData
+      ] = await Promise.all([
+        db.query.tasks.findMany({
+          where: eq(tasks.userId, req.user.id)
+        }),
+        db.query.chatMessages.findMany({
+          where: eq(chatMessages.userId, req.user.id)
+        }),
+        db.query.analytics.findMany({
+          where: eq(analytics.userId, req.user.id)
+        }),
+        db.query.businessInfo.findMany({
+          where: eq(businessInfo.userId, req.user.id)
+        }),
+        db.query.businessInfoHistory.findMany({
+          where: eq(businessInfoHistory.userId, req.user.id)
+        }),
+        db.query.users.findFirst({
+          where: eq(users.id, req.user.id),
+          columns: {
+            id: true,
+            username: true,
+            businessName: true,
+            businessDescription: true,
+            businessObjectives: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        })
+      ]);
+
+      const exportData = {
+        user: userData,
+        tasks: userTasks,
+        chats: userChats,
+        analytics: userAnalytics,
+        businessInfo: userBusinessInfo,
+        businessInfoHistory: userBusinessInfoHistory,
+        exportDate: new Date().toISOString()
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename=ai-ceo-data.json');
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      res.status(500).send("Failed to export data");
+    }
+  });
+
   app.patch("/api/admin/:table/:id", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });

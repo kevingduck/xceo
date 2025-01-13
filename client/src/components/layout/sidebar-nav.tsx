@@ -29,8 +29,8 @@ const navItems = [
     icon: BarChart
   },
   {
-    title: "Configure CEO",
-    href: "/configure-ceo",
+    title: "Settings",
+    href: "/settings",
     icon: Settings
   },
   {

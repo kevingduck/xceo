@@ -14,6 +14,7 @@ import Tasks from "@/pages/tasks";
 import Business from "@/pages/business";
 import Analytics from "@/pages/analytics";
 import Admin from "@/pages/admin";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 
@@ -51,6 +52,7 @@ function ProtectedRoutes() {
         <Route path="/business" component={Business} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/configure-ceo" component={ConfigureCEO} />
+        <Route path="/settings" component={Settings} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>
