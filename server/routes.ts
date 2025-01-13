@@ -6,11 +6,10 @@ import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistor
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
-import { type FieldType, type FieldValue, type Field, type BusinessInfoFields } from "@db/types";
 
 // Define field validation schema
 const fieldValueSchema = z.object({
-  value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
+  value: z.any(),
   type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list'])
 });
 
@@ -145,6 +144,7 @@ export function registerRoutes(app: Express): Server {
 
       const { businessName, businessDescription, objectives } = result.data;
 
+      // Update user profile
       await db
         .update(users)
         .set({
@@ -154,59 +154,161 @@ export function registerRoutes(app: Express): Server {
         })
         .where(eq(users.id, req.user.id));
 
-      const initialFields: BusinessInfoFields = {
-        company_name: {
-          value: businessName,
-          type: "text",
-          updatedAt: new Date().toISOString(),
-          updatedBy: "system"
-        }
-      };
-
-      const sectionsToInsert = [
+      // Create initial business info entries with detailed templates
+      const sections = [
         {
           section: "Business Overview",
           title: "Business Overview",
-          content: `Company Profile:\n- Company Name: ${businessName}\n- Description: ${businessDescription}\n\nObjectives:\n${objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}`,
-          userId: req.user.id,
-          fields: initialFields,
+          content: `Company Profile:
+- Company Name: ${businessName}
+- Industry: To be defined
+- Founded: To be defined
+- Location: To be defined
+
+Mission Statement:
+${businessDescription}
+
+Key Objectives:
+${objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
+
+Value Proposition:
+To be defined based on market research and customer feedback`,
+          fields: {
+            company_name: {
+              value: businessName,
+              type: "text",
+              updatedAt: new Date().toISOString(),
+              updatedBy: "system"
+            }
+          },
           metadata: { source: "initial-setup" }
         },
         {
           section: "Market Intelligence",
           title: "Market Intelligence",
-          content: "Initial market intelligence content",
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
+          content: `Target Market:
+- Total Addressable Market: To be researched
+- Serviceable Obtainable Market: To be defined
+- Primary Customer Segments: To be identified
+
+Competitive Landscape:
+1. Direct Competitors
+   - To be researched and analyzed
+   - Key differentiators to be identified
+2. Indirect Competitors
+   - Alternative solutions to be mapped
+   - Market substitutes to be evaluated
+
+Market Trends:
+1. Industry trends to be analyzed
+2. Technology trends to be evaluated
+3. Consumer behavior patterns to be studied
+
+Growth Opportunities:
+1. Market expansion possibilities
+2. Product development directions
+3. Partnership potentials`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
           section: "Financial Overview",
           title: "Financial Overview",
-          content: "Initial financial overview content",
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
+          content: `Current Financials:
+- Revenue: To be tracked
+- Expenses: To be monitored
+- Profit Margins: To be calculated
+
+Key Metrics:
+1. Customer Acquisition Cost (CAC): To be measured
+2. Lifetime Value (LTV): To be calculated
+3. Monthly Recurring Revenue (MRR): To be tracked
+
+Investment Status:
+- Funding Round: To be determined
+- Capital Raised: To be tracked
+- Runway: To be calculated
+
+Financial Goals:
+1. Revenue targets to be set
+2. Profitability milestones to be defined
+3. Investment strategy to be developed`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
           section: "Operations",
           title: "Operations",
-          content: "Initial operations content",
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
+          content: `Core Business Processes:
+1. Product/Service Delivery
+   - Standard operating procedures to be defined
+   - Quality control measures to be implemented
+   - Delivery timelines to be established
+
+2. Customer Support
+   - Service standards to be set
+   - Response time targets to be defined
+   - Customer satisfaction goals to be established
+
+Infrastructure:
+- Technology stack to be defined
+- Tools and systems to be implemented
+- Integration points to be identified
+
+Operational Metrics:
+1. Efficiency KPIs to be defined
+2. Quality standards to be set
+3. Cost optimization targets to be established`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
           section: "Human Capital",
           title: "Human Capital",
-          content: "Initial human capital content",
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
+          content: `Organizational Structure:
+- Leadership team to be defined
+- Departmental structure to be established
+- Reporting lines to be clarified
+
+Hiring Plan:
+- Key positions to be identified
+- Recruitment timeline to be set
+- Skills requirements to be defined
+
+Team Development:
+1. Training needs to be assessed
+2. Career paths to be defined
+3. Performance metrics to be established
+
+Culture & Values:
+- Company values to be defined
+- Team building activities to be planned
+- Recognition programs to be developed`,
+          fields: {},
           metadata: { source: "initial-setup" }
         }
       ];
 
-      await db.insert(businessInfo).values(sectionsToInsert);
+      // Insert initial business info sections
+      const fieldsWithType = {
+        company_name: {
+          value: businessName,
+          type: "text" as const,
+          updatedAt: new Date().toISOString(),
+          updatedBy: "system" as const
+        }
+      };
+
+      await db.insert(businessInfo).values(
+        sections.map(section => ({
+          section: section.section,
+          title: section.title,
+          content: section.content,
+          userId: req.user.id,
+          fields: section.section === "Business Overview" ? fieldsWithType : {},
+          metadata: { source: "initial-setup" }
+        }))
+      );
 
       res.json({ message: "CEO configured successfully" });
     } catch (error) {
@@ -233,69 +335,87 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).send("Please configure your business first");
       }
 
-
-      // Create initial fields with proper typing
-      const initialFields: BusinessInfoFields = {
-        company_name: {
-          value: user.businessName,
-          type: "text",
-          updatedAt: new Date().toISOString(),
-          updatedBy: "system"
-        }
-      };
-
-      // Create sections with properly typed fields
-      const sectionsToCreate = [
+      // Define required sections with default content
+      const requiredSections = [
         {
           section: "Business Overview",
           title: "Business Overview",
-          content: `Initial content for Business Overview`,
-          userId: req.user.id,
-          fields: initialFields,
-          metadata: { source: "auto-init" }
+          defaultFields: {
+            company_name: {
+              value: user.businessName,
+              type: "text",
+              updatedAt: new Date().toISOString(),
+              updatedBy: "system"
+            }
+          }
         },
         {
           section: "Market Intelligence",
           title: "Market Intelligence",
-          content: `Initial content for Market Intelligence`,
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
-          metadata: { source: "auto-init" }
+          defaultFields: {}
         },
         {
           section: "Financial Overview",
           title: "Financial Overview",
-          content: `Initial content for Financial Overview`,
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
-          metadata: { source: "auto-init" }
+          defaultFields: {}
         },
         {
           section: "Operations",
           title: "Operations",
-          content: `Initial content for Operations`,
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
-          metadata: { source: "auto-init" }
+          defaultFields: {}
         },
         {
           section: "Human Capital",
           title: "Human Capital",
-          content: `Initial content for Human Capital`,
-          userId: req.user.id,
-          fields: {} as BusinessInfoFields,
-          metadata: { source: "auto-init" }
+          defaultFields: {}
         }
-      ] as const;
+      ];
 
-      const createdSections = await db
-        .insert(businessInfo)
-        .values(sectionsToCreate)
-        .returning();
+      // Get existing sections
+      const existingSections = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.userId, req.user.id));
+
+      // Group by section to get latest entries
+      const latestSectionMap = existingSections.reduce((acc, curr) => {
+        if (!acc[curr.section] || acc[curr.section].createdAt < curr.createdAt) {
+          acc[curr.section] = curr;
+        }
+        return acc;
+      }, {} as Record<string, typeof existingSections[0]>);
+
+      // Create missing sections
+      const sectionsToCreate = requiredSections
+        .filter(required => !latestSectionMap[required.section])
+        .map(section => ({
+          section: section.section,
+          title: section.title,
+          content: `Initial content for ${section.section}`,
+          userId: req.user.id,
+          fields: section.defaultFields,
+          metadata: { source: "auto-init" }
+        }));
+
+      let createdSections: typeof existingSections = [];
+      if (sectionsToCreate.length > 0) {
+        createdSections = await db
+          .insert(businessInfo)
+          .values(sectionsToCreate)
+          .returning();
+      }
+
+      // Combine existing and newly created sections
+      const allSections = [
+        ...Object.values(latestSectionMap),
+        ...createdSections
+      ];
 
       res.json({
-        message: "Sections initialized successfully",
-        sections: createdSections
+        message: sectionsToCreate.length > 0
+          ? "Sections initialized successfully"
+          : "All sections already exist",
+        sections: allSections
       });
     } catch (error) {
       console.error("Error initializing business sections:", error);

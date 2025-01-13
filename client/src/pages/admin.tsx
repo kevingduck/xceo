@@ -200,43 +200,43 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Database Admin</h1>
+        <h1 className="text-3xl font-bold">Database Admin</h1>
         <p className="text-muted-foreground">
           Manage and view your database content
         </p>
       </div>
 
       <Card>
-        <CardContent className="p-3 md:p-6">
+        <CardContent className="p-6">
           <Tabs value={activeTable} onValueChange={setActiveTable}>
-            <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-4">
-              <TabsList className="flex flex-wrap gap-2">
+            <div className="flex justify-between items-center mb-4">
+              <TabsList>
                 {tables.map((table) => (
-                  <TabsTrigger key={table.id} value={table.id} className="text-sm">
+                  <TabsTrigger key={table.id} value={table.id}>
                     {table.name}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-2">
+                <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search content..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-8 w-full sm:w-[250px]"
+                    className="pl-8 w-[250px]"
                   />
                 </div>
                 {Object.values(selectedItems).some(Boolean) && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="icon" className="w-full sm:w-auto">
+                      <Button variant="destructive" size="icon">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="sm:max-w-[425px]">
+                    <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -259,7 +259,7 @@ export default function AdminPage() {
               <TabsContent key={table.id} value={table.id}>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <CardTitle className="flex items-center gap-2">
                       {table.name}
                       <Badge variant="secondary">
                         {filteredData.length} records
@@ -270,114 +270,110 @@ export default function AdminPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="rounded-md border">
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-12">
+                    <ScrollArea className="h-[500px] rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12">
+                              <input
+                                type="checkbox"
+                                checked={
+                                  filteredData.length > 0 &&
+                                  filteredData.every((item: any) => selectedItems[item.id])
+                                }
+                                onChange={(e) => handleSelectAll(e.target.checked)}
+                              />
+                            </TableHead>
+                            {filteredData[0] &&
+                              Object.keys(filteredData[0]).map((key) => (
+                                <TableHead key={key}>{key}</TableHead>
+                              ))}
+                            <TableHead className="w-20">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredData.map((item: any) => (
+                            <TableRow key={item.id}>
+                              <TableCell>
                                 <input
                                   type="checkbox"
-                                  checked={
-                                    filteredData.length > 0 &&
-                                    filteredData.every((item: any) => selectedItems[item.id])
+                                  checked={selectedItems[item.id] || false}
+                                  onChange={(e) =>
+                                    setSelectedItems({
+                                      ...selectedItems,
+                                      [item.id]: e.target.checked,
+                                    })
                                   }
-                                  onChange={(e) => handleSelectAll(e.target.checked)}
                                 />
-                              </TableHead>
-                              {filteredData[0] &&
-                                Object.keys(filteredData[0]).map((key) => (
-                                  <TableHead key={key} className="whitespace-nowrap min-w-[120px]">
-                                    {key}
-                                  </TableHead>
-                                ))}
-                              <TableHead className="w-20 sticky right-0 bg-background">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredData.map((item: any) => (
-                              <TableRow key={item.id}>
-                                <TableCell>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedItems[item.id] || false}
-                                    onChange={(e) =>
-                                      setSelectedItems({
-                                        ...selectedItems,
-                                        [item.id]: e.target.checked,
-                                      })
-                                    }
-                                  />
+                              </TableCell>
+                              {Object.entries(item).map(([key, value]: [string, any]) => (
+                                <TableCell key={key}>
+                                  {renderValue(value, item, key)}
                                 </TableCell>
-                                {Object.entries(item).map(([key, value]: [string, any]) => (
-                                  <TableCell key={key} className="whitespace-nowrap min-w-[120px]">
-                                    {renderValue(value, item, key)}
-                                  </TableCell>
-                                ))}
-                                <TableCell className="sticky right-0 bg-background">
-                                  <div className="flex items-center gap-2">
-                                    {editingItem?.id === item.id ? (
-                                      <>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => handleSaveEdit(editingItem)}
-                                        >
-                                          <Save className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => setEditingItem(null)}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      </>
-                                    ) : (
+                              ))}
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {editingItem?.id === item.id ? (
+                                    <>
                                       <Button
                                         size="icon"
                                         variant="ghost"
-                                        onClick={() => setEditingItem({ ...item })}
+                                        onClick={() => handleSaveEdit(editingItem)}
                                       >
-                                        <Edit className="h-4 w-4" />
+                                        <Save className="h-4 w-4" />
                                       </Button>
-                                    )}
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button size="icon" variant="ghost">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent className="sm:max-w-[425px]">
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete this item.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() =>
-                                              deleteItemMutation.mutate({
-                                                table: activeTable,
-                                                ids: [item.id],
-                                              })
-                                            }
-                                          >
-                                            Delete
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => setEditingItem(null)}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => setEditingItem({ ...item })}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="icon" variant="ghost">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This action cannot be undone. This will permanently delete this item.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            deleteItemMutation.mutate({
+                                              table: activeTable,
+                                              ids: [item.id],
+                                            })
+                                          }
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
                   </CardContent>
                 </Card>
               </TabsContent>

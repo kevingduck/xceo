@@ -5,8 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 import { FloatingChat } from "@/components/widgets/floating-chat";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Container } from "@/components/layout/container";
 
 import AuthPage from "@/pages/auth-page";
 import ConfigureCEO from "@/pages/configure-ceo";
@@ -20,22 +18,15 @@ import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 
-function LoadingScreen() {
-  return (
-    <Container>
-      <div className="flex items-center justify-center min-h-[90vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    </Container>
-  );
-}
-
 function ProtectedRoutes() {
   const { user, isLoading } = useUser();
-  const isMobile = useIsMobile();
 
   if (isLoading) {
-    return <LoadingScreen />;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!user) {
@@ -54,20 +45,18 @@ function ProtectedRoutes() {
 
   return (
     <DashboardLayout>
-      <div className={`w-full ${isMobile ? 'px-2' : 'px-4'}`}>
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/chat" component={Chat} />
-          <Route path="/tasks" component={Tasks} />
-          <Route path="/business" component={Business} />
-          <Route path="/analytics" component={Analytics} />
-          <Route path="/configure-ceo" component={ConfigureCEO} />
-          <Route path="/settings" component={Settings} />
-          <Route path="/admin" component={Admin} />
-          <Route component={NotFound} />
-        </Switch>
-        {!isMobile && <FloatingChat />}
-      </div>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/chat" component={Chat} />
+        <Route path="/tasks" component={Tasks} />
+        <Route path="/business" component={Business} />
+        <Route path="/analytics" component={Analytics} />
+        <Route path="/configure-ceo" component={ConfigureCEO} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/admin" component={Admin} />
+        <Route component={NotFound} />
+      </Switch>
+      <FloatingChat />
     </DashboardLayout>
   );
 }
@@ -75,10 +64,8 @@ function ProtectedRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
-        <ProtectedRoutes />
-        <Toaster />
-      </div>
+      <ProtectedRoutes />
+      <Toaster />
     </QueryClientProvider>
   );
 }

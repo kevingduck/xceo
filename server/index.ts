@@ -9,7 +9,28 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Basic request logging middleware
+// Verify database connection on startup
+async function verifyDatabaseConnection() {
+  try {
+    // Test database connection with a simple query
+    await db.select().from(users).limit(1);
+    log("Database connection verified successfully");
+  } catch (error) {
+    log("Failed to connect to database:", error);
+    throw error;
+  }
+}
+
+// Verify required environment variables
+function verifyEnvironment() {
+  const requiredEnvVars = ['DATABASE_URL', 'ANTHROPIC_API_KEY'];
+  const missing = requiredEnvVars.filter(env => !process.env[env]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -40,81 +61,47 @@ app.use((req, res, next) => {
   next();
 });
 
-// Verify database connection on startup
-async function verifyDatabaseConnection() {
-  try {
-    await db.select().from(users).limit(1);
-    log("Database connection verified successfully");
-    return true;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown database error";
-    log("Database connection error: " + errorMessage);
-    return false;
-  }
-}
-
-// Verify required environment variables
-function verifyEnvironment() {
-  const requiredEnvVars = ['DATABASE_URL', 'ANTHROPIC_API_KEY'];
-  const missing = requiredEnvVars.filter(env => !process.env[env]);
-
-  if (missing.length > 0) {
-    log(`Missing required environment variables: ${missing.join(', ')}`);
-    return false;
-  }
-  return true;
-}
-
 (async () => {
   try {
     // Verify environment and database connection before starting
-    const envOk = verifyEnvironment();
-    if (!envOk) {
-      log("Environment verification failed");
-      process.exit(1);
-    }
+    verifyEnvironment();
+    await verifyDatabaseConnection();
 
-    const dbOk = await verifyDatabaseConnection();
-    if (!dbOk) {
-      log("Database verification failed");
-      process.exit(1);
-    }
-
-    // Setup authentication before registering routes
+    // Setup authentication first
     setupAuth(app);
 
-    // Register routes after auth setup
+    // Then register all other routes
     const server = registerRoutes(app);
 
-    // Error handling middleware
+    // Global error handler with better logging
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
 
-      log("Application error:", {
+      // Log the full error for debugging
+      console.error("Application error:", {
         status,
         message,
         stack: err.stack,
-        error: err instanceof Error ? err.message : String(err)
+        originalError: err
       });
 
       res.status(status).json({ message });
     });
 
-    // Setup vite in development mode after all other middleware
+    // Setup Vite for development
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Start the server
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
     });
   } catch (error) {
-    log("Failed to start server:", error instanceof Error ? error.message : String(error));
+    console.error("Failed to start server:", error);
     process.exit(1);
   }
 })();

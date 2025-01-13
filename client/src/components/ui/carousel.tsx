@@ -135,7 +135,7 @@ const Carousel = React.forwardRef<
         <div
           ref={ref}
           onKeyDownCapture={handleKeyDown}
-          className={cn("relative w-full touch-pan-y", className)}
+          className={cn("relative", className)}
           role="region"
           aria-roledescription="carousel"
           {...props}
@@ -182,7 +182,7 @@ const CarouselItem = React.forwardRef<
       role="group"
       aria-roledescription="slide"
       className={cn(
-        "min-w-0 shrink-0 grow-0 basis-full px-4 sm:basis-1/2 lg:basis-1/3",
+        "min-w-0 shrink-0 grow-0 basis-full",
         orientation === "horizontal" ? "pl-4" : "pt-4",
         className
       )}
@@ -204,11 +204,10 @@ const CarouselPrevious = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-8 w-8 rounded-full touch-manipulation",
+        "absolute  h-8 w-8 rounded-full",
         orientation === "horizontal"
-          ? "left-2 top-1/2 -translate-y-1/2 md:left-4"
+          ? "-left-12 top-1/2 -translate-y-1/2"
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
-        !canScrollPrev && "hidden",
         className
       )}
       disabled={!canScrollPrev}
@@ -234,11 +233,10 @@ const CarouselNext = React.forwardRef<
       variant={variant}
       size={size}
       className={cn(
-        "absolute h-8 w-8 rounded-full touch-manipulation",
+        "absolute h-8 w-8 rounded-full",
         orientation === "horizontal"
-          ? "right-2 top-1/2 -translate-y-1/2 md:right-4"
+          ? "-right-12 top-1/2 -translate-y-1/2"
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
-        !canScrollNext && "hidden",
         className
       )}
       disabled={!canScrollNext}
