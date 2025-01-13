@@ -173,6 +173,14 @@ ${objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
 
 Value Proposition:
 To be defined based on market research and customer feedback`,
+          fields: {
+            company_name: {
+              value: businessName,
+              type: "text",
+              updatedAt: new Date().toISOString(),
+              updatedBy: "system"
+            }
+          },
           metadata: { source: "initial-setup" }
         },
         {
@@ -200,6 +208,7 @@ Growth Opportunities:
 1. Market expansion possibilities
 2. Product development directions
 3. Partnership potentials`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
@@ -224,6 +233,7 @@ Financial Goals:
 1. Revenue targets to be set
 2. Profitability milestones to be defined
 3. Investment strategy to be developed`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
@@ -249,6 +259,7 @@ Operational Metrics:
 1. Efficiency KPIs to be defined
 2. Quality standards to be set
 3. Cost optimization targets to be established`,
+          fields: {},
           metadata: { source: "initial-setup" }
         },
         {
@@ -273,6 +284,7 @@ Culture & Values:
 - Company values to be defined
 - Team building activities to be planned
 - Recognition programs to be developed`,
+          fields: {},
           metadata: { source: "initial-setup" }
         }
       ];
@@ -289,6 +301,61 @@ Culture & Values:
     } catch (error) {
       console.error("Error configuring CEO:", error);
       res.status(500).send("Failed to configure CEO");
+    }
+  });
+
+  // Initialize missing business sections
+  app.post("/api/business-info/initialize", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Get current user's business info
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id))
+        .limit(1);
+
+      if (!user.businessName) {
+        return res.status(400).send("Please configure your business first");
+      }
+
+      // Get existing sections
+      const existingSections = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.userId, req.user.id));
+
+      const requiredSections = ["Business Overview", "Market Intelligence", "Financial Overview", "Operations", "Human Capital"];
+      const missingSections = requiredSections.filter(
+        section => !existingSections.some(existing => existing.section === section)
+      );
+
+      if (missingSections.length === 0) {
+        return res.json({ message: "All sections already exist" });
+      }
+
+      // Create missing sections
+      const sectionsToCreate = missingSections.map(section => ({
+        section,
+        title: section,
+        content: `${section} content to be defined`,
+        userId: req.user.id,
+        fields: {},
+        metadata: { source: "auto-init" }
+      }));
+
+      await db.insert(businessInfo).values(sectionsToCreate);
+
+      res.json({ 
+        message: "Missing sections initialized", 
+        initialized: missingSections 
+      });
+    } catch (error) {
+      console.error("Error initializing business sections:", error);
+      res.status(500).send("Failed to initialize business sections");
     }
   });
 

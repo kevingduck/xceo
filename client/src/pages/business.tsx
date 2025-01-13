@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -278,6 +278,43 @@ export default function BusinessPage() {
       });
     }
   });
+
+  // Add initialization mutation
+  const initializeSections = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/business-info/initialize", {
+        method: "POST",
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+      toast({
+        title: "Sections initialized",
+        description: "Business sections have been created successfully"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Add initialization check
+  useEffect(() => {
+    if (!isBusinessLoading && businessInfo.length === 0) {
+      initializeSections.mutate();
+    }
+  }, [isBusinessLoading, businessInfo.length]);
 
   // Find business info for current section
   const currentSection = sections.find(s => s.id === activeSection);
