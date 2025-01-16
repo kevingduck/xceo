@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, MessageSquare, CheckSquare, BarChart, Briefcase, Database, Settings, Users, Package, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LayoutDashboard, MessageSquare, CheckSquare, BarChart, Briefcase, Database, Settings, Users, Package } from "lucide-react";
 
 const navItems = [
   {
@@ -64,13 +63,8 @@ export function SidebarNav({ mobile, onClose }: SidebarNavProps) {
       "flex flex-col h-full",
       mobile ? "bg-background" : "bg-card"
     )}>
-      <div className="h-14 border-b flex items-center px-4 justify-between">
+      <div className="h-14 border-b flex items-center px-4">
         <span className="font-bold text-xl">AI CEO</span>
-        {mobile && onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto">
