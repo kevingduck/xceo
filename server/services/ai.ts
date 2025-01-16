@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory } from '@db/schema';
-import { eq } from 'drizzle-orm';
+import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates } from '@db/schema';
+import { eq, desc } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -152,6 +152,79 @@ type SuggestedAction = {
   value: string;
 };
 
+async function getBusinessContext(userId: number) {
+  try {
+    // Get latest business info entries
+    const businessData = await db.query.businessInfo.findMany({
+      where: eq(businessInfo.userId, userId),
+      orderBy: [desc(businessInfo.updatedAt)]
+    });
+
+    // Get team information
+    const teamData = await db.query.teamMembers.findMany({
+      where: eq(teamMembers.userId, userId)
+    });
+
+    // Get open positions
+    const positionsData = await db.query.positions.findMany({
+      where: eq(positions.userId, userId)
+    });
+
+    // Get candidates
+    const candidatesData = await db.query.candidates.findMany({
+      where: eq(candidates.userId, userId)
+    });
+
+    // Format context sections
+    let contextString = "Current Business Context:\n\n";
+
+    // Add business info sections
+    if (businessData.length > 0) {
+      contextString += "Business Information:\n";
+      for (const info of businessData) {
+        if (info.fields && Object.keys(info.fields).length > 0) {
+          contextString += `${info.section}:\n`;
+          for (const [key, field] of Object.entries(info.fields)) {
+            contextString += `- ${key}: ${field.value}\n`;
+          }
+        }
+      }
+    }
+
+    // Add team information
+    if (teamData.length > 0) {
+      contextString += "\nTeam Members:\n";
+      for (const member of teamData) {
+        contextString += `- ${member.name} (${member.role})\n  Department: ${member.department || 'Not specified'}\n  Status: ${member.status}\n`;
+      }
+    }
+
+    // Add positions
+    if (positionsData.length > 0) {
+      contextString += "\nOpen Positions:\n";
+      for (const position of positionsData) {
+        contextString += `- ${position.title} (${position.department})\n  Status: ${position.status}\n  Priority: ${position.priority}\n`;
+      }
+    }
+
+    // Add candidates
+    if (candidatesData.length > 0) {
+      contextString += "\nCandidates:\n";
+      for (const candidate of candidatesData) {
+        contextString += `- ${candidate.name} (for Position ID: ${candidate.positionId})\n  Status: ${candidate.status}\n`;
+        if (candidate.skills && candidate.skills.length > 0) {
+          contextString += `  Skills: ${candidate.skills.join(", ")}\n`;
+        }
+      }
+    }
+
+    return contextString;
+  } catch (error) {
+    console.error("Error fetching business context:", error);
+    return "";
+  }
+}
+
 export async function processAIMessage(
   userId: number,
   userMessage: string,
@@ -166,66 +239,74 @@ export async function processAIMessage(
     throw new Error('ANTHROPIC_API_KEY environment variable is not set');
   }
 
-  let systemPrompt = businessContext ? 
-    `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
+  try {
+    // Get database context
+    const dbContext = await getBusinessContext(userId);
 
-    Business Context:
-    Description: ${businessContext.description}
-    Key Objectives: ${businessContext.objectives.join(", ")}
+    let systemPrompt = businessContext ? 
+      `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
 
-    Your role is to be a thoughtful, strategic advisor who:
-    1. Engages in natural, flowing conversation
-    2. Asks clarifying questions to better understand situations
-    3. Provides actionable strategic advice
-    4. Creates focused tasks when there are clear action items
-    5. Updates business fields when new information is provided
-    6. Maintains context across the conversation
+      Business Context:
+      Description: ${businessContext.description}
+      Key Objectives: ${businessContext.objectives.join(", ")}
 
-    When updating business fields, use this exact format:
-    <field_update>
-    {
-      "businessInfoId": 1,
-      "fields": {
-        "targetSegments": {
-          "value": ["Service Businesses", "Real Estate", "Small Business"],
-          "type": "list"
+      Current Database Information:
+      ${dbContext}
+
+      Your role is to be a thoughtful, strategic advisor who:
+      1. Engages in natural, flowing conversation
+      2. Asks clarifying questions to better understand situations
+      3. Provides actionable strategic advice based on the available business context
+      4. Creates focused tasks when there are clear action items
+      5. Updates business fields when new information is provided
+      6. References and utilizes the provided business context in responses
+      7. Maintains context across the conversation
+
+      When updating business fields, use this exact format:
+      <field_update>
+      {
+        "businessInfoId": 1,
+        "fields": {
+          "targetSegments": {
+            "value": ["Service Businesses", "Real Estate", "Small Business"],
+            "type": "list"
+          }
         }
       }
-    }
-    </field_update>
+      </field_update>
 
-    When creating tasks, use this exact format:
-    <task>
-    {
-      "title": "Task title",
-      "description": "Detailed task description",
-      "status": "todo"
-    }
-    </task>
-
-    Always provide 2-3 suggested next actions after your response in this format:
-    <suggested_actions>
-    [
+      When creating tasks, use this exact format:
+      <task>
       {
-        "label": "Update target segments",
-        "type": "field_update",
-        "value": "Let's update our target market segments to focus on the most promising opportunities."
-      },
-      {
-        "label": "Create customer outreach plan",
-        "type": "task_creation",
-        "value": "Help me create a detailed plan for reaching out to potential customers."
+        "title": "Task title",
+        "description": "Detailed task description",
+        "status": "todo"
       }
-    ]
-    </suggested_actions>` :
-    'You are an AI CEO assistant. Please ask the user to configure their business details first. Be friendly and explain why this configuration would be helpful for our collaboration.';
+      </task>
 
-  try {
+      Always provide 2-3 suggested next actions after your response in this format:
+      <suggested_actions>
+      [
+        {
+          "label": "Update target segments",
+          "type": "field_update",
+          "value": "Let's update our target market segments to focus on the most promising opportunities."
+        },
+        {
+          "label": "Create customer outreach plan",
+          "type": "task_creation",
+          "value": "Help me create a detailed plan for reaching out to potential customers."
+        }
+      ]
+      </suggested_actions>` :
+      'You are an AI CEO assistant. Please ask the user to configure their business details first. Be friendly and explain why this configuration would be helpful for our collaboration.';
+
     console.log("Processing AI message with context:", { 
       userId,
       messageLength: userMessage.length,
       hasBusinessContext: !!businessContext,
-      numPreviousMessages: businessContext?.recentMessages?.length || 0
+      numPreviousMessages: businessContext?.recentMessages?.length || 0,
+      hasDbContext: !!dbContext
     });
 
     const response = await anthropic.messages.create({
@@ -269,12 +350,6 @@ export async function processAIMessage(
 
         try {
           const updateData = JSON.parse(jsonMatch[0]);
-
-          // Validate the update data structure
-          if (!updateData.businessInfoId || !updateData.fields || typeof updateData.fields !== 'object') {
-            throw new Error('Invalid field update format');
-          }
-
           await processFieldUpdate(
             updateData.businessInfoId,
             updateData.fields,
@@ -303,12 +378,6 @@ export async function processAIMessage(
         const taskJson = match.replace(/<\/?task>/g, '').trim();
         try {
           const taskData = JSON.parse(taskJson);
-
-          // Validate task data
-          if (!taskData.title || typeof taskData.title !== 'string') {
-            throw new Error('Invalid task format: missing or invalid title');
-          }
-
           const [task] = await db.insert(tasks)
             .values({
               ...taskData,
