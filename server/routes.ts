@@ -468,15 +468,21 @@ Culture & Values:
       return res.status(401).send("Not authenticated");
     }
     try {
+      // Get all business info records
       const businessInfoRecords = await db.query.businessInfo.findMany({
         where: eq(businessInfo.userId, req.user.id),
         orderBy: (info, { desc }) => [desc(info.updatedAt)]
       });
 
-      // Group by section to get latest entries
+      // Group by section to get latest entries and preserve all fields
       const latestSectionMap = businessInfoRecords.reduce((acc, curr) => {
-        if (!acc[curr.section] || new Date(acc[curr.section].updatedAt) < new Date(curr.updatedAt)) {
-          acc[curr.section] = curr;
+        const existingRecord = acc[curr.section];
+        if (!existingRecord || new Date(existingRecord.updatedAt) < new Date(curr.updatedAt)) {
+          // Ensure we preserve fields object even if it's empty
+          acc[curr.section] = {
+            ...curr,
+            fields: curr.fields || {}
+          };
         }
         return acc;
       }, {} as Record<string, typeof businessInfoRecords[0]>);
@@ -484,6 +490,15 @@ Culture & Values:
       // Convert map to array and sort by section
       const sections = Object.values(latestSectionMap).sort((a, b) =>
         a.section.localeCompare(b.section)
+      );
+
+      // Log the response for debugging
+      console.log("Returning business info sections:",
+        sections.map(s => ({
+          section: s.section,
+          hasFields: Object.keys(s.fields || {}).length > 0,
+          hasContent: Boolean(s.content)
+        }))
       );
 
       res.json(sections);
