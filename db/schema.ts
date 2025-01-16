@@ -596,6 +596,16 @@ export const packageOfferingSchema = z.object({
   sortOrder: z.number().optional()
 });
 
+// Add task schema after the loginUserSchema
+export const taskSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  status: z.enum(["todo", "in_progress", "done", "blocked"]).default("todo"),
+  githubIssueUrl: z.string().url().optional()
+});
+
+export const updateTaskSchema = taskSchema.partial();
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = typeof users.$inferSelect;
