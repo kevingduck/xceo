@@ -1,0 +1,63 @@
+7:04:58 PM [express] Database connection verified successfully
+7:04:58 PM [express] Server started successfully on port 5000
+7:05:01 PM [express] GET /api/user 401 in 3ms :: {"ok":false,"message":"Not logged in"}
+7:05:02 PM [express] GET /api/user 401 in 1ms :: {"ok":false,"message":"Not logged in"}
+7:05:02 PM [express] GET /api/user 401 in 1ms :: {"ok":false,"message":"Not logged in"}
+7:05:02 PM [express] GET /api/user 401 in 1ms :: {"ok":false,"message":"Not logged in"}
+7:06:18 PM [express] GET /api/user 401 in 1ms :: {"ok":false,"message":"Not logged in"}
+Login attempt: { username: 'kevin', password: 'demodemo' }
+Attempting login for user: kevin
+Login successful for user: kevin
+7:06:20 PM [express] POST /api/login 200 in 224ms :: {"ok":true,"message":"Login successful","user":…
+7:06:20 PM [express] GET /api/user 200 in 44ms :: {"id":6,"username":"kevin","password":"620e0f88b7a…
+7:06:20 PM [express] GET /api/business-info 200 in 48ms
+7:06:20 PM [express] GET /api/tasks 200 in 225ms :: [{"id":63,"title":"Establish Task Management Sys…
+7:06:20 PM [express] GET /api/analytics 304 in 232ms :: []
+7:06:20 PM [express] GET /api/chat 200 in 256ms :: [{"id":103,"content":"where should we start? I ha…
+Error processing AI message: BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0.input_schema: Field required"}}
+    at Function.generate (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/error.ts:63:14)
+    at Anthropic.makeStatusError (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:434:21)
+    at Anthropic.makeRequest (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:498:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async processAIMessage (/home/runner/workspace/server/services/ai.ts:111:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26) {
+  status: 400,
+  headers: {
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '903062189f33ead3-ORD',
+    connection: 'keep-alive',
+    'content-length': '106',
+    'content-type': 'application/json',
+    date: 'Thu, 16 Jan 2025 19:06:31 GMT',
+    'request-id': 'req_0181ebLRRvs5tSh235mCVgS1',
+    server: 'cloudflare',
+    via: '1.1 google',
+    'x-robots-tag': 'none',
+    'x-should-retry': 'false'
+  },
+  request_id: 'req_0181ebLRRvs5tSh235mCVgS1',
+  error: {
+    type: 'error',
+    error: {
+      type: 'invalid_request_error',
+      message: 'tools.0.input_schema: Field required'
+    }
+  }
+}
+Chat error: Error: Failed to process message
+    at processAIMessage (/home/runner/workspace/server/services/ai.ts:185:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+Application error: {
+  status: 500,
+  message: 'Failed to process message',
+  stack: 'Error: Failed to process message\n' +
+    '    at processAIMessage (/home/runner/workspace/server/services/ai.ts:185:11)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)',
+  originalError: Error: Failed to process message
+      at processAIMessage (/home/runner/workspace/server/services/ai.ts:185:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+}
+7:06:31 PM [express] POST /api/chat 500 in 357ms :: {"message":"Failed to process message"}

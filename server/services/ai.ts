@@ -107,7 +107,7 @@ The create_task function accepts: title (required), description (optional), and 
 
 Respond naturally while keeping this context in mind. If a new task should be created based on the conversation, use the create_task function.`;
 
-    // Call Anthropic API with proper message structure
+    // Call Anthropic API
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
@@ -124,7 +124,7 @@ Respond naturally while keeping this context in mind. If a new task should be cr
         {
           name: "create_task",
           description: "Create a new task in the system",
-          parameters: {
+          input_schema: {
             type: "object",
             properties: {
               title: {
