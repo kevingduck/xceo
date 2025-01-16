@@ -4,7 +4,7 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
-  teamMembers, positions, candidates
+  teamMembers, positions, candidates, taskSchema, updateTaskSchema
 } from "@db/schema";
 import { eq, inArray, desc, and } from "drizzle-orm";
 import { z } from "zod";
@@ -45,20 +45,26 @@ export function registerRoutes(app: Express): Server {
     try {
       const result = taskSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
       }
       const [task] = await db.insert(tasks)
         .values({
           ...result.data,
-          userId: req.user.id
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
       res.json(task);
     } catch (error) {
       console.error("Error creating task:", error);
-      res.status(500).send("Failed to create task");
+      res.status(500).json({
+        message: "Failed to create task",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1888,8 +1894,7 @@ Culture & Values:
       res.json(features);
     } catch (error) {
       console.error("Error fetching features:", error);
-      res.status(500).send("Failed to fetch features");
-    }
+      res.status(500).send("Failed to fetch features");    }
   });
 
   app.post("/api/offerings/:id/features", async (req, res) => {
@@ -2000,7 +2005,8 @@ Culture & Values:
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
-      const tiers = await db.query.pricingTiers.findMany({        where: eq(pricingTiers.userId, req.user.id),
+      const tiers = await db.query.pricingTiers.findMany({
+        where: eq(pricingTiers.userId, req.user.id),
         with: {
           features: true
         }
