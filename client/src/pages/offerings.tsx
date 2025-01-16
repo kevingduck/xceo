@@ -56,6 +56,14 @@ import {
   Clock,
   Tag,
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Check } from "lucide-react";
+
 
 // Form schemas based on the backend types
 const offeringFormSchema = z.object({
@@ -84,6 +92,15 @@ const roadmapItemFormSchema = z.object({
   priority: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
+const pricingTierSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  price: z.number().min(0, "Price must be positive"),
+  billingCycle: z.string().optional(),
+  offeringId: z.number(),
+  features: z.array(z.string()).optional(),
+});
+
 export default function OfferingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -92,6 +109,8 @@ export default function OfferingsPage() {
   const [selectedOffering, setSelectedOffering] = useState<any>(null);
   const [showFeatureForm, setShowFeatureForm] = useState(false);
   const [showRoadmapForm, setShowRoadmapForm] = useState(false);
+  const [showPricingTierForm, setShowPricingTierForm] = useState(false);
+  const [editingTier, setEditingTier] = useState<any>(null);
 
   // Queries
   const { data: offerings = [], isLoading: isLoadingOfferings } = useQuery({
@@ -105,6 +124,11 @@ export default function OfferingsPage() {
 
   const { data: roadmapItems = [], isLoading: isLoadingRoadmap } = useQuery({
     queryKey: ["/api/offerings", selectedOffering?.id, "roadmap"],
+    enabled: !!selectedOffering,
+  });
+
+  const { data: pricingTiers = [], isLoading: isLoadingTiers } = useQuery({
+    queryKey: ["/api/pricing-tiers"],
     enabled: !!selectedOffering,
   });
 
@@ -171,6 +195,68 @@ export default function OfferingsPage() {
     },
   });
 
+  const addPricingTier = useMutation({
+    mutationFn: async (data: z.infer<typeof pricingTierSchema>) => {
+      const res = await fetch("/api/pricing-tiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-tiers"] });
+      setShowPricingTierForm(false);
+      toast({
+        title: "Success",
+        description: "Pricing tier added successfully",
+      });
+    },
+  });
+
+  const updatePricingTier = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof pricingTierSchema> }) => {
+      const res = await fetch(`/api/pricing-tiers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-tiers"] });
+      setShowPricingTierForm(false);
+      setEditingTier(null);
+      toast({
+        title: "Success",
+        description: "Pricing tier updated successfully",
+      });
+    },
+  });
+
+  const deletePricingTier = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/pricing-tiers/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-tiers"] });
+      toast({
+        title: "Success",
+        description: "Pricing tier deleted successfully",
+      });
+    },
+  });
+
+
   // Form hooks
   const offeringForm = useForm<z.infer<typeof offeringFormSchema>>({
     resolver: zodResolver(offeringFormSchema),
@@ -183,6 +269,16 @@ export default function OfferingsPage() {
         amount: 0,
         currency: "USD",
       },
+    },
+  });
+
+  const pricingTierForm = useForm<z.infer<typeof pricingTierSchema>>({
+    resolver: zodResolver(pricingTierSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      price: 0,
+      features: [],
     },
   });
 
@@ -233,7 +329,7 @@ export default function OfferingsPage() {
           <p>No offerings yet. Add your first offering to get started.</p>
         ) : (
           offerings.map((offering: any) => (
-            <Card key={offering.id} className="hover:shadow-md transition-shadow">
+            <Card key={offering.id} className="hover:shadow-md transition-shadow" onClick={() => setSelectedOffering(offering)}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="truncate">{offering.name}</span>
@@ -429,6 +525,215 @@ export default function OfferingsPage() {
                 </Button>
                 <Button type="submit">
                   {editingOffering ? "Update Offering" : "Add Offering"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pricing Tiers Section */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">Pricing Tiers</h2>
+          <Button
+            onClick={() => {
+              if (!selectedOffering) {
+                toast({
+                  title: "Select an Offering",
+                  description: "Please select an offering first to add pricing tiers.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              setEditingTier(null);
+              setShowPricingTierForm(true);
+              pricingTierForm.reset({
+                name: "",
+                description: "",
+                price: 0,
+                offeringId: selectedOffering.id,
+              });
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Pricing Tier
+          </Button>
+        </div>
+
+        {isLoadingTiers ? (
+          <p>Loading pricing tiers...</p>
+        ) : pricingTiers.length === 0 ? (
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-muted-foreground text-center">
+                No pricing tiers yet. Add your first tier to get started.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {pricingTiers.map((tier: any) => (
+              <Card key={tier.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{tier.name}</CardTitle>
+                      <div className="mt-1 text-2xl font-bold">
+                        ${tier.price}
+                        {tier.billingCycle && <span className="text-sm text-muted-foreground">/{tier.billingCycle}</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingTier(tier);
+                          setShowPricingTierForm(true);
+                          pricingTierForm.reset({
+                            name: tier.name,
+                            description: tier.description,
+                            price: tier.price,
+                            billingCycle: tier.billingCycle,
+                            offeringId: tier.offeringId,
+                          });
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this pricing tier?")) {
+                            deletePricingTier.mutate(tier.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4">{tier.description}</p>
+                  {tier.features && tier.features.length > 0 && (
+                    <Accordion type="single" collapsible>
+                      <AccordionItem value="features">
+                        <AccordionTrigger>Features</AccordionTrigger>
+                        <AccordionContent>
+                          <ul className="space-y-2">
+                            {tier.features.map((feature: string, index: number) => (
+                              <li key={index} className="flex items-center">
+                                <Check className="h-4 w-4 mr-2 text-green-500" />
+                                {feature}
+                              </li>
+                            ))}
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pricing Tier Form Dialog */}
+      <Dialog open={showPricingTierForm} onOpenChange={setShowPricingTierForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingTier ? "Edit Pricing Tier" : "Add Pricing Tier"}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...pricingTierForm}>
+            <form onSubmit={pricingTierForm.handleSubmit((data) =>
+              editingTier
+                ? updatePricingTier.mutate({ id: editingTier.id, data })
+                : addPricingTier.mutate(data)
+            )}>
+              <div className="space-y-4">
+                <FormField
+                  control={pricingTierForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Basic, Pro, Enterprise" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={pricingTierForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe what this tier offers"
+                          className="min-h-[100px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={pricingTierForm.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            {...field}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={pricingTierForm.control}
+                    name="billingCycle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Billing Cycle</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., month, year" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowPricingTierForm(false);
+                    setEditingTier(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingTier ? "Update Tier" : "Add Tier"}
                 </Button>
               </DialogFooter>
             </form>
