@@ -286,7 +286,11 @@ export default function TeamPage() {
       const res = await fetch(`/api/team-members/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          skills: data.skills.split(",").map((s) => s.trim()),
+          salary: data.salary ? parseInt(data.salary) : undefined,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -294,9 +298,17 @@ export default function TeamPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
       setEditingTeamMember(null);
+      setShowTeamForm(false);
       toast({
         title: "Team member updated",
         description: "The team member has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -306,7 +318,12 @@ export default function TeamPage() {
       const res = await fetch(`/api/positions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          requirements: data.requirements.split(",").map((r) => r.trim()),
+          minSalary: data.minSalary ? parseInt(data.minSalary) : undefined,
+          maxSalary: data.maxSalary ? parseInt(data.maxSalary) : undefined,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -314,9 +331,17 @@ export default function TeamPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
       setEditingPosition(null);
+      setShowPositionForm(false);
       toast({
         title: "Position updated",
         description: "The position has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -326,7 +351,13 @@ export default function TeamPage() {
       const res = await fetch(`/api/candidates/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          skills: data.skills.split(",").map((s) => s.trim()),
+          experienceYears: data.experienceYears ? parseInt(data.experienceYears) : undefined,
+          highlights: data.highlights.split(",").map((h) => h.trim()),
+          rating: data.rating ? parseInt(data.rating) : undefined,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -334,9 +365,17 @@ export default function TeamPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
       setEditingCandidate(null);
+      setShowCandidateForm(false);
       toast({
         title: "Candidate updated",
         description: "The candidate has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -951,19 +990,22 @@ export default function TeamPage() {
                           <span>Remote work allowed</span>
                         </div>
                       )}
-                      <div className="flex items-center">
-                        <GraduationCap className="mr-2 h-4 w-4" />
-                        <div className="flex flex-wrap gap-1">
-                          {position.requirements.map((req: string, index: number) => (
-                            <span
-                              key={index}
-                              className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
-                            >
-                              {req}
-                            </span>
-                          ))}
+                      {/* Position requirements display */}
+                      {position.requirements && (
+                        <div className="flex items-center">
+                          <GraduationCap className="mr-2 h-4 w-4" />
+                          <div className="flex flex-wrap gap-1">
+                            {position.requirements.map((req: string, index: number) => (
+                              <span
+                                key={index}
+                                className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
+                              >
+                                {req}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

@@ -840,6 +840,7 @@ Culture & Values:
     }
   });
 
+  // Remove existing candidates first when deleting a position
   app.delete("/api/positions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
@@ -856,7 +857,11 @@ Culture & Values:
       if (!existingPosition) return res.status(404).send("Position not found");
       if (existingPosition.userId !== req.user.id) return res.status(403).send("Unauthorized");
 
+      // First delete any candidates associated with this position
+      await db.delete(candidates).where(eq(candidates.positionId, positionId));
+      // Then delete the position
       await db.delete(positions).where(eq(positions.id, positionId));
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting position:", error);
@@ -1260,6 +1265,137 @@ Culture & Values:
     } catch (error) {
       console.error(`Error deleting from ${table}:`, error);
       res.status(500).json({ message: `Failed to delete from ${table}` });
+    }
+  });
+
+  // Fix PUT methods for updates
+  app.put("/api/team-members/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const teamMemberId = parseInt(req.params.id);
+      if (isNaN(teamMemberId)) return res.status(400).send("Invalid team member ID");
+
+      const [existingMember] = await db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.id, teamMemberId))
+        .limit(1);
+
+      if (!existingMember) return res.status(404).send("Team member not found");
+      if (existingMember.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = teamMemberSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedMember] = await db
+        .update(teamMembers)
+        .set({
+          ...result.data,
+          updatedAt: new Date(),
+          skills: Array.isArray(result.data.skills) ? result.data.skills : result.data.skills?.split(',').map(s => s.trim()),
+        })
+        .where(eq(teamMembers.id, teamMemberId))
+        .returning();
+
+      res.json(updatedMember);
+    } catch (error) {
+      console.error("Error updating team member:", error);
+      res.status(500).send("Failed to update team member");
+    }
+  });
+
+  app.put("/api/positions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const positionId = parseInt(req.params.id);
+      if (isNaN(positionId)) return res.status(400).send("Invalid position ID");
+
+      const [existingPosition] = await db
+        .select()
+        .from(positions)
+        .where(eq(positions.id, positionId))
+        .limit(1);
+
+      if (!existingPosition) return res.status(404).send("Position not found");
+      if (existingPosition.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = positionSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedPosition] = await db
+        .update(positions)
+        .set({
+          ...result.data,
+          updatedAt: new Date(),
+          requirements: Array.isArray(result.data.requirements) ? result.data.requirements : result.data.requirements?.split(',').map(r => r.trim()),
+          salary: result.data.minSalary && result.data.maxSalary ? {
+            min: parseInt(result.data.minSalary),
+            max: parseInt(result.data.maxSalary),
+            currency: "USD"
+          } : undefined
+        })
+        .where(eq(positions.id, positionId))
+        .returning();
+
+      res.json(updatedPosition);
+    } catch (error) {
+      console.error("Error updating position:", error);
+      res.status(500).send("Failed to update position");
+    }
+  });
+
+  app.put("/api/candidates/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const candidateId = parseInt(req.params.id);
+      if (isNaN(candidateId)) return res.status(400).send("Invalid candidate ID");
+
+      const [existingCandidate] = await db
+        .select()
+        .from(candidates)
+        .where(eq(candidates.id, candidateId))
+        .limit(1);
+
+      if (!existingCandidate) return res.status(404).send("Candidate not found");
+      if (existingCandidate.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = candidateSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedCandidate] = await db
+        .update(candidates)
+        .set({
+          ...result.data,
+          updatedAt: new Date(),
+          skills: Array.isArray(result.data.skills) ? result.data.skills : result.data.skills?.split(',').map(s => s.trim()),
+          experience: result.data.experienceYears ? {
+            years: parseInt(result.data.experienceYears),
+            highlights: result.data.highlights?.split(',').map(h => h.trim()) || []
+          } : undefined,
+          rating: result.data.rating ? parseInt(result.data.rating) : undefined
+        })
+        .where(eq(candidates.id, candidateId))
+        .returning();
+
+      res.json(updatedCandidate);
+    } catch (error) {
+      console.error("Error updating candidate:", error);
+      res.status(500).send("Failed to update candidate");
     }
   });
 
