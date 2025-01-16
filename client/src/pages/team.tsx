@@ -1,14 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -25,10 +18,10 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { 
-  Users, 
-  UserPlus, 
-  Briefcase, 
+import {
+  Users,
+  UserPlus,
+  Briefcase,
   UserSearch,
   Mail,
   Building2,
@@ -37,7 +30,11 @@ import {
   GraduationCap,
   MapPin,
   Globe,
-  Star
+  Star,
+  Pencil,
+  Trash2,
+  Upload,
+  File
 } from "lucide-react";
 
 // Form schemas
@@ -79,6 +76,9 @@ const candidateSchema = z.object({
 export default function TeamPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [editingTeamMember, setEditingTeamMember] = useState<any>(null);
+  const [editingPosition, setEditingPosition] = useState<any>(null);
+  const [editingCandidate, setEditingCandidate] = useState<any>(null);
 
   // Fetch data
   const { data: teamMembers, isLoading: isLoadingTeam } = useQuery({
@@ -101,7 +101,7 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map(s => s.trim()),
+          skills: data.skills.split(",").map((s) => s.trim()),
           salary: data.salary ? parseInt(data.salary) : undefined,
         }),
       });
@@ -132,12 +132,14 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          requirements: data.requirements.split(",").map(r => r.trim()),
-          salary: data.minSalary && data.maxSalary ? {
-            min: parseInt(data.minSalary),
-            max: parseInt(data.maxSalary),
-            currency: "USD"
-          } : undefined,
+          requirements: data.requirements.split(",").map((r) => r.trim()),
+          salary: data.minSalary && data.maxSalary
+            ? {
+                min: parseInt(data.minSalary),
+                max: parseInt(data.maxSalary),
+                currency: "USD",
+              }
+            : undefined,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -167,10 +169,10 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map(s => s.trim()),
+          skills: data.skills.split(",").map((s) => s.trim()),
           experience: {
             years: parseInt(data.experienceYears),
-            highlights: data.highlights.split(",").map(h => h.trim())
+            highlights: data.highlights.split(",").map((h) => h.trim()),
           },
           rating: data.rating ? parseInt(data.rating) : undefined,
         }),
@@ -193,6 +195,161 @@ export default function TeamPage() {
       });
     },
   });
+
+  // Delete mutations
+  const deleteTeamMember = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/team-members/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
+      toast({
+        title: "Team member deleted",
+        description: "The team member has been deleted successfully.",
+      });
+    },
+  });
+
+  const deletePosition = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/positions/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+      toast({
+        title: "Position deleted",
+        description: "The position has been deleted successfully.",
+      });
+    },
+  });
+
+  const deleteCandidate = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/candidates/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
+      toast({
+        title: "Candidate deleted",
+        description: "The candidate has been deleted successfully.",
+      });
+    },
+  });
+
+  // Add file upload mutation
+  const uploadFile = useMutation({
+    mutationFn: async ({ file, entityType, entityId }: { file: File; entityType: string; entityId: number }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("entityType", entityType);
+      formData.append("entityId", entityId.toString());
+
+      const res = await fetch("/api/attachments", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: (_, { entityType }) => {
+      queryClient.invalidateQueries({
+        queryKey:
+          entityType === "candidate" ? ["/api/candidates"] : ["/api/positions"],
+      });
+      toast({
+        title: "File uploaded",
+        description: "The file has been uploaded successfully.",
+      });
+    },
+  });
+
+  // Update mutations
+  const updateTeamMember = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof teamMemberSchema> }) => {
+      const res = await fetch(`/api/team-members/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
+      setEditingTeamMember(null);
+      toast({
+        title: "Team member updated",
+        description: "The team member has been updated successfully.",
+      });
+    },
+  });
+
+  const updatePosition = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof positionSchema> }) => {
+      const res = await fetch(`/api/positions/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+      setEditingPosition(null);
+      toast({
+        title: "Position updated",
+        description: "The position has been updated successfully.",
+      });
+    },
+  });
+
+  const updateCandidate = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof candidateSchema> }) => {
+      const res = await fetch(`/api/candidates/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
+      setEditingCandidate(null);
+      toast({
+        title: "Candidate updated",
+        description: "The candidate has been updated successfully.",
+      });
+    },
+  });
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, entityType: string, entityId: number) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await uploadFile.mutateAsync({ file, entityType, entityId });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to upload file",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Form hooks
   const teamMemberForm = useForm<z.infer<typeof teamMemberSchema>>({
@@ -243,24 +400,41 @@ export default function TeamPage() {
     <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Team Management</h1>
-        <div className="flex gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Team Member
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Team Member</DialogTitle>
-                <DialogDescription>
-                  Enter the details of the new team member below.
-                </DialogDescription>
-              </DialogHeader>
+      </div>
+
+      <Tabs defaultValue="team">
+        <TabsList className="mb-4">
+          <TabsTrigger value="team">
+            <Users className="mr-2 h-4 w-4" />
+            Team Members
+          </TabsTrigger>
+          <TabsTrigger value="positions">
+            <Briefcase className="mr-2 h-4 w-4" />
+            Open Positions
+          </TabsTrigger>
+          <TabsTrigger value="candidates">
+            <UserSearch className="mr-2 h-4 w-4" />
+            Candidates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="team">
+          {/* Add Team Member Form */}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <UserPlus className="mr-2 h-5 w-5" />
+                {editingTeamMember ? "Edit Team Member" : "Add Team Member"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <Form {...teamMemberForm}>
-                <form onSubmit={teamMemberForm.handleSubmit((data) => addTeamMember.mutate(data))}>
-                  <div className="space-y-4">
+                <form onSubmit={teamMemberForm.handleSubmit((data) =>
+                  editingTeamMember
+                    ? updateTeamMember.mutate({ id: editingTeamMember.id, data })
+                    : addTeamMember.mutate(data)
+                )}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={teamMemberForm.control}
                       name="name"
@@ -352,32 +526,109 @@ export default function TeamPage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" className="w-full">
-                      Add Team Member
+                    <Button type="submit" className="md:col-span-2">
+                      {editingTeamMember ? "Update Team Member" : "Add Team Member"}
                     </Button>
                   </div>
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
+            </CardContent>
+          </Card>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Briefcase className="mr-2 h-4 w-4" />
-                Add Position
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Position</DialogTitle>
-                <DialogDescription>
-                  Create a new job position for your team.
-                </DialogDescription>
-              </DialogHeader>
+          {/* Team Members List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {isLoadingTeam ? (
+              <p>Loading team members...</p>
+            ) : teamMembers?.length === 0 ? (
+              <p>No team members yet.</p>
+            ) : (
+              teamMembers?.map((member: any) => (
+                <Card key={member.id}>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      {member.name}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingTeamMember(member)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteTeamMember.mutate(member.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <Briefcase className="mr-2 h-4 w-4" />
+                        <span>{member.role}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Building2 className="mr-2 h-4 w-4" />
+                        <span>{member.department}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Mail className="mr-2 h-4 w-4" />
+                        <span>{member.email}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        <span>Started: {new Date(member.startDate).toLocaleDateString()}</span>
+                      </div>
+                      {member.salary && (
+                        <div className="flex items-center">
+                          <BadgeDollarSign className="mr-2 h-4 w-4" />
+                          <span>${member.salary.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {member.skills && (
+                        <div className="flex items-center">
+                          <GraduationCap className="mr-2 h-4 w-4" />
+                          <div className="flex flex-wrap gap-1">
+                            {member.skills.map((skill: string, index: number) => (
+                              <span
+                                key={index}
+                                className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="positions">
+          {/* Position form and list with similar edit/delete functionality */}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Briefcase className="mr-2 h-5 w-5" />
+                {editingPosition ? "Edit Position" : "Add Position"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <Form {...positionForm}>
-                <form onSubmit={positionForm.handleSubmit((data) => addPosition.mutate(data))}>
-                  <div className="space-y-4">
+                <form onSubmit={positionForm.handleSubmit((data) =>
+                  editingPosition
+                    ? updatePosition.mutate({ id: editingPosition.id, data })
+                    : addPosition.mutate(data)
+                )}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={positionForm.control}
                       name="title"
@@ -411,7 +662,7 @@ export default function TeamPage() {
                         <FormItem>
                           <FormLabel>Description</FormLabel>
                           <FormControl>
-                            <Textarea 
+                            <Textarea
                               placeholder="Describe the role and responsibilities"
                               className="min-h-[100px]"
                               {...field}
@@ -494,93 +745,25 @@ export default function TeamPage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" className="w-full">
-                      Add Position
+                    {/* File upload field */}
+                    <div className="md:col-span-2">
+                      <FormLabel>Attachments</FormLabel>
+                      <Input
+                        type="file"
+                        onChange={(e) => editingPosition && handleFileUpload(e, "position", editingPosition.id)}
+                        disabled={!editingPosition}
+                      />
+                    </div>
+                    <Button type="submit" className="md:col-span-2">
+                      {editingPosition ? "Update Position" : "Add Position"}
                     </Button>
                   </div>
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
 
-      <Tabs defaultValue="team">
-        <TabsList className="mb-4">
-          <TabsTrigger value="team">
-            <Users className="mr-2 h-4 w-4" />
-            Team Members
-          </TabsTrigger>
-          <TabsTrigger value="positions">
-            <Briefcase className="mr-2 h-4 w-4" />
-            Open Positions
-          </TabsTrigger>
-          <TabsTrigger value="candidates">
-            <UserSearch className="mr-2 h-4 w-4" />
-            Candidates
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="team">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoadingTeam ? (
-              <p>Loading team members...</p>
-            ) : teamMembers?.length === 0 ? (
-              <p>No team members yet.</p>
-            ) : (
-              teamMembers?.map((member: any) => (
-                <Card key={member.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{member.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <Briefcase className="mr-2 h-4 w-4" />
-                        <span>{member.role}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Building2 className="mr-2 h-4 w-4" />
-                        <span>{member.department}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Mail className="mr-2 h-4 w-4" />
-                        <span>{member.email}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        <span>Started: {new Date(member.startDate).toLocaleDateString()}</span>
-                      </div>
-                      {member.salary && (
-                        <div className="flex items-center">
-                          <BadgeDollarSign className="mr-2 h-4 w-4" />
-                          <span>${member.salary.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {member.skills && (
-                        <div className="flex items-center">
-                          <GraduationCap className="mr-2 h-4 w-4" />
-                          <div className="flex flex-wrap gap-1">
-                            {member.skills.map((skill: string, index: number) => (
-                              <span
-                                key={index}
-                                className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="positions">
+          {/* Positions list with attachments */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingPositions ? (
               <p>Loading positions...</p>
@@ -590,7 +773,25 @@ export default function TeamPage() {
               positions?.map((position: any) => (
                 <Card key={position.id}>
                   <CardHeader>
-                    <CardTitle className="text-lg">{position.title}</CardTitle>
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      {position.title}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingPosition(position)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deletePosition.mutate(position.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -641,81 +842,22 @@ export default function TeamPage() {
         </TabsContent>
 
         <TabsContent value="candidates">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoadingCandidates ? (
-              <p>Loading candidates...</p>
-            ) : candidates?.length === 0 ? (
-              <p>No candidates yet.</p>
-            ) : (
-              candidates?.map((candidate: any) => (
-                <Card key={candidate.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{candidate.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <Mail className="mr-2 h-4 w-4" />
-                        <span>{candidate.email}</span>
-                      </div>
-                      {candidate.phone && (
-                        <div className="flex items-center">
-                          <Mail className="mr-2 h-4 w-4" />
-                          <span>{candidate.phone}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <Briefcase className="mr-2 h-4 w-4" />
-                        <span>{candidate.experience.years} years experience</span>
-                      </div>
-                      {candidate.rating && (
-                        <div className="flex items-center">
-                          <Star className="mr-2 h-4 w-4" />
-                          <span>{candidate.rating}/5</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <GraduationCap className="mr-2 h-4 w-4" />
-                        <div className="flex flex-wrap gap-1">
-                          {candidate.skills.map((skill: string, index: number) => (
-                            <span
-                              key={index}
-                              className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      {candidate.notes && (
-                        <p className="text-sm text-muted-foreground">
-                          {candidate.notes}
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="mt-4">
-                <UserSearch className="mr-2 h-4 w-4" />
-                Add Candidate
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Candidate</DialogTitle>
-                <DialogDescription>
-                  Add a new candidate for an open position.
-                </DialogDescription>
-              </DialogHeader>
+          {/* Candidate form and list with similar edit/delete functionality */}
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <UserSearch className="mr-2 h-5 w-5" />
+                {editingCandidate ? "Edit Candidate" : "Add Candidate"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <Form {...candidateForm}>
-                <form onSubmit={candidateForm.handleSubmit((data) => addCandidate.mutate(data))}>
-                  <div className="space-y-4">
+                <form onSubmit={candidateForm.handleSubmit((data) =>
+                  editingCandidate
+                    ? updateCandidate.mutate({ id: editingCandidate.id, data })
+                    : addCandidate.mutate(data)
+                )}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={candidateForm.control}
                       name="positionId"
@@ -838,8 +980,7 @@ export default function TeamPage() {
                     <FormField
                       control={candidateForm.control}
                       name="notes"
-                      render={({ field }) => (
-                        <FormItem>
+                      render={({ field }) =>(<FormItem>
                           <FormLabel>Notes (optional)</FormLabel>
                           <FormControl>
                             <Textarea
@@ -871,14 +1012,100 @@ export default function TeamPage() {
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" className="w-full">
-                      Add Candidate
+                    {/* File upload field */}
+                    <div className="md:col-span-2">
+                      <FormLabel>Attachments</FormLabel>
+                      <Input
+                        type="file"
+                        onChange={(e) => editingCandidate && handleFileUpload(e, "candidate", editingCandidate.id)}
+                        disabled={!editingCandidate}
+                      />
+                    </div>
+                    <Button type="submit" className="md:col-span-2">
+                      {editingCandidate ? "Update Candidate" : "Add Candidate"}
                     </Button>
                   </div>
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
+            </CardContent>
+          </Card>
+
+          {/* Candidates list with attachments */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {isLoadingCandidates ? (
+              <p>Loading candidates...</p>
+            ) : candidates?.length === 0 ? (
+              <p>No candidates yet.</p>
+            ) : (
+              candidates?.map((candidate: any) => (
+                <Card key={candidate.id}>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      {candidate.name}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingCandidate(candidate)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteCandidate.mutate(candidate.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <Mail className="mr-2 h-4 w-4" />
+                        <span>{candidate.email}</span>
+                      </div>
+                      {candidate.phone && (
+                        <div className="flex items-center">
+                          <Mail className="mr-2 h-4 w-4" />
+                          <span>{candidate.phone}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <Briefcase className="mr-2 h-4 w-4" />
+                        <span>{candidate.experience.years} years experience</span>
+                      </div>
+                      {candidate.rating && (
+                        <div className="flex items-center">
+                          <Star className="mr-2 h-4 w-4" />
+                          <span>{candidate.rating}/5</span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <GraduationCap className="mr-2 h-4 w-4" />
+                        <div className="flex flex-wrap gap-1">
+                          {candidate.skills.map((skill: string, index: number) => (
+                            <span
+                              key={index}
+                              className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      {candidate.notes && (
+                        <p className="text-sm text-muted-foreground">
+                          {candidate.notes}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

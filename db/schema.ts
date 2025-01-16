@@ -142,6 +142,20 @@ export const candidates = pgTable("candidates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
+// File attachments for candidates and positions
+export const attachments = pgTable("attachments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  entityType: text("entity_type").notNull(), // 'candidate' or 'position'
+  entityId: integer("entity_id").notNull(),
+  filename: text("filename").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
@@ -205,10 +219,13 @@ export const positionsRelations = relations(positions, ({ one, many }) => ({
     fields: [positions.userId],
     references: [users.id]
   }),
-  candidates: many(candidates)
+  candidates: many(candidates),
+  attachments: many(attachments, {
+    relationName: "positionAttachments"
+  })
 }));
 
-export const candidatesRelations = relations(candidates, ({ one }) => ({
+export const candidatesRelations = relations(candidates, ({ one, many }) => ({
   user: one(users, {
     fields: [candidates.userId],
     references: [users.id]
@@ -216,6 +233,16 @@ export const candidatesRelations = relations(candidates, ({ one }) => ({
   position: one(positions, {
     fields: [candidates.positionId],
     references: [positions.id]
+  }),
+  attachments: many(attachments, {
+    relationName: "candidateAttachments"
+  })
+}));
+
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
+  user: one(users, {
+    fields: [attachments.userId],
+    references: [users.id]
   })
 }));
 
@@ -275,6 +302,15 @@ export const candidateSchema = z.object({
   rating: z.string().optional()
 });
 
+export const attachmentSchema = z.object({
+  entityType: z.enum(["candidate", "position"]),
+  entityId: z.number(),
+  filename: z.string(),
+  fileUrl: z.string(),
+  fileType: z.string(),
+  fileSize: z.number()
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = typeof users.$inferSelect;
@@ -286,3 +322,4 @@ export type BusinessInfoHistory = typeof businessInfoHistory.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type Position = typeof positions.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;
