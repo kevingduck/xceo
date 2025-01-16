@@ -256,7 +256,6 @@ export default function OfferingsPage() {
     },
   });
 
-
   // Form hooks
   const offeringForm = useForm<z.infer<typeof offeringFormSchema>>({
     resolver: zodResolver(offeringFormSchema),
@@ -283,7 +282,8 @@ export default function OfferingsPage() {
   });
 
   // Helper functions
-  const handleEditOffering = (offering: any) => {
+  const handleEditOffering = (offering: any, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent selection when clicking edit
     setEditingOffering(offering);
     setShowOfferingForm(true);
     offeringForm.reset({
@@ -293,6 +293,13 @@ export default function OfferingsPage() {
       status: offering.status,
       price: offering.price,
     });
+  };
+
+  const handleDeleteOffering = (offering: any, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent selection when clicking delete
+    if (confirm("Are you sure you want to delete this offering?")) {
+      deleteOffering.mutate(offering.id);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -329,7 +336,15 @@ export default function OfferingsPage() {
           <p>No offerings yet. Add your first offering to get started.</p>
         ) : (
           offerings.map((offering: any) => (
-            <Card key={offering.id} className="hover:shadow-md transition-shadow" onClick={() => setSelectedOffering(offering)}>
+            <Card
+              key={offering.id}
+              className={`hover:shadow-md transition-shadow cursor-pointer ${
+                selectedOffering?.id === offering.id
+                  ? 'ring-2 ring-primary shadow-lg'
+                  : ''
+              }`}
+              onClick={() => setSelectedOffering(offering)}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="truncate">{offering.name}</span>
@@ -337,14 +352,14 @@ export default function OfferingsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleEditOffering(offering)}
+                      onClick={(e) => handleEditOffering(offering, e)}
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteOffering.mutate(offering.id)}
+                      onClick={(e) => handleDeleteOffering(offering, e)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -535,7 +550,14 @@ export default function OfferingsPage() {
       {/* Pricing Tiers Section */}
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Pricing Tiers</h2>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold">Pricing Tiers</h2>
+            {selectedOffering && (
+              <p className="text-sm text-muted-foreground">
+                Managing tiers for: <span className="font-medium">{selectedOffering.name}</span>
+              </p>
+            )}
+          </div>
           <Button
             onClick={() => {
               if (!selectedOffering) {
@@ -553,6 +575,7 @@ export default function OfferingsPage() {
                 description: "",
                 price: 0,
                 offeringId: selectedOffering.id,
+                features: [],
               });
             }}
           >
@@ -561,7 +584,15 @@ export default function OfferingsPage() {
           </Button>
         </div>
 
-        {isLoadingTiers ? (
+        {!selectedOffering ? (
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-muted-foreground text-center">
+                Select an offering above to manage its pricing tiers
+              </p>
+            </CardContent>
+          </Card>
+        ) : isLoadingTiers ? (
           <p>Loading pricing tiers...</p>
         ) : pricingTiers.length === 0 ? (
           <Card>
@@ -573,71 +604,74 @@ export default function OfferingsPage() {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {pricingTiers.map((tier: any) => (
-              <Card key={tier.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>{tier.name}</CardTitle>
-                      <div className="mt-1 text-2xl font-bold">
-                        ${tier.price}
-                        {tier.billingCycle && <span className="text-sm text-muted-foreground">/{tier.billingCycle}</span>}
+            {pricingTiers
+              .filter((tier: any) => tier.offeringId === selectedOffering.id)
+              .map((tier: any) => (
+                <Card key={tier.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>{tier.name}</CardTitle>
+                        <div className="mt-1 text-2xl font-bold">
+                          ${tier.price}
+                          {tier.billingCycle && <span className="text-sm text-muted-foreground">/{tier.billingCycle}</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingTier(tier);
+                            setShowPricingTierForm(true);
+                            pricingTierForm.reset({
+                              name: tier.name,
+                              description: tier.description,
+                              price: tier.price,
+                              billingCycle: tier.billingCycle,
+                              offeringId: tier.offeringId,
+                              features: tier.features || [],
+                            });
+                          }}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this pricing tier?")) {
+                              deletePricingTier.mutate(tier.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingTier(tier);
-                          setShowPricingTierForm(true);
-                          pricingTierForm.reset({
-                            name: tier.name,
-                            description: tier.description,
-                            price: tier.price,
-                            billingCycle: tier.billingCycle,
-                            offeringId: tier.offeringId,
-                          });
-                        }}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          if (confirm("Are you sure you want to delete this pricing tier?")) {
-                            deletePricingTier.mutate(tier.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground mb-4">{tier.description}</p>
-                  {tier.features && tier.features.length > 0 && (
-                    <Accordion type="single" collapsible>
-                      <AccordionItem value="features">
-                        <AccordionTrigger>Features</AccordionTrigger>
-                        <AccordionContent>
-                          <ul className="space-y-2">
-                            {tier.features.map((feature: string, index: number) => (
-                              <li key={index} className="flex items-center">
-                                <Check className="h-4 w-4 mr-2 text-green-500" />
-                                {feature}
-                              </li>
-                            ))}
-                          </ul>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground mb-4">{tier.description}</p>
+                    {tier.features && tier.features.length > 0 && (
+                      <Accordion type="single" collapsible>
+                        <AccordionItem value="features">
+                          <AccordionTrigger>Features</AccordionTrigger>
+                          <AccordionContent>
+                            <ul className="space-y-2">
+                              {tier.features.map((feature: string, index: number) => (
+                                <li key={index} className="flex items-center">
+                                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                                  {feature}
+                                </li>
+                              ))}
+                            </ul>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
           </div>
         )}
       </div>
@@ -651,11 +685,19 @@ export default function OfferingsPage() {
             </DialogTitle>
           </DialogHeader>
           <Form {...pricingTierForm}>
-            <form onSubmit={pricingTierForm.handleSubmit((data) =>
-              editingTier
-                ? updatePricingTier.mutate({ id: editingTier.id, data })
-                : addPricingTier.mutate(data)
-            )}>
+            <form onSubmit={pricingTierForm.handleSubmit((data) => {
+              // Ensure offeringId is set
+              const formData = {
+                ...data,
+                offeringId: selectedOffering.id,
+              };
+
+              if (editingTier) {
+                updatePricingTier.mutate({ id: editingTier.id, data: formData });
+              } else {
+                addPricingTier.mutate(formData);
+              }
+            })}>
               <div className="space-y-4">
                 <FormField
                   control={pricingTierForm.control}
