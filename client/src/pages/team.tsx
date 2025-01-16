@@ -34,7 +34,9 @@ import {
   Pencil,
   Trash2,
   Upload,
-  File
+  File,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 
 // Form schemas
@@ -79,6 +81,9 @@ export default function TeamPage() {
   const [editingTeamMember, setEditingTeamMember] = useState<any>(null);
   const [editingPosition, setEditingPosition] = useState<any>(null);
   const [editingCandidate, setEditingCandidate] = useState<any>(null);
+  const [showTeamForm, setShowTeamForm] = useState(false);
+  const [showPositionForm, setShowPositionForm] = useState(false);
+  const [showCandidateForm, setShowCandidateForm] = useState(false);
 
   // Fetch data
   const { data: teamMembers, isLoading: isLoadingTeam } = useQuery({
@@ -396,6 +401,74 @@ export default function TeamPage() {
     },
   });
 
+  // Reset form when editing is canceled
+  const cancelEdit = (type: 'team' | 'position' | 'candidate') => {
+    switch (type) {
+      case 'team':
+        setEditingTeamMember(null);
+        teamMemberForm.reset();
+        break;
+      case 'position':
+        setEditingPosition(null);
+        positionForm.reset();
+        break;
+      case 'candidate':
+        setEditingCandidate(null);
+        candidateForm.reset();
+        break;
+    }
+  };
+
+  // Set form values when editing
+  const startEdit = (type: 'team' | 'position' | 'candidate', item: any) => {
+    switch (type) {
+      case 'team':
+        setEditingTeamMember(item);
+        setShowTeamForm(true);
+        teamMemberForm.reset({
+          name: item.name,
+          role: item.role,
+          department: item.department,
+          email: item.email,
+          startDate: new Date(item.startDate).toISOString().split('T')[0],
+          skills: item.skills.join(', '),
+          bio: item.bio,
+          salary: item.salary?.toString(),
+        });
+        break;
+      case 'position':
+        setEditingPosition(item);
+        setShowPositionForm(true);
+        positionForm.reset({
+          title: item.title,
+          department: item.department,
+          description: item.description,
+          requirements: item.requirements.join(', '),
+          minSalary: item.salary?.min.toString(),
+          maxSalary: item.salary?.max.toString(),
+          location: item.location,
+          remoteAllowed: item.remoteAllowed,
+        });
+        break;
+      case 'candidate':
+        setEditingCandidate(item);
+        setShowCandidateForm(true);
+        candidateForm.reset({
+          positionId: item.positionId,
+          name: item.name,
+          email: item.email,
+          phone: item.phone,
+          resumeUrl: item.resumeUrl,
+          skills: item.skills.join(', '),
+          experienceYears: item.experience.years.toString(),
+          highlights: item.experience.highlights.join(', '),
+          notes: item.notes,
+          rating: item.rating?.toString(),
+        });
+        break;
+    }
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
@@ -419,123 +492,152 @@ export default function TeamPage() {
         </TabsList>
 
         <TabsContent value="team">
-          {/* Add Team Member Form */}
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <UserPlus className="mr-2 h-5 w-5" />
+          <div className="mb-4">
+            <Button 
+              onClick={() => {
+                setShowTeamForm(!showTeamForm);
+                if (!showTeamForm) {
+                  cancelEdit('team');
+                }
+              }}
+              variant="outline"
+              className="w-full justify-between"
+            >
+              <span className="flex items-center">
+                <UserPlus className="mr-2 h-4 w-4" />
                 {editingTeamMember ? "Edit Team Member" : "Add Team Member"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...teamMemberForm}>
-                <form onSubmit={teamMemberForm.handleSubmit((data) =>
-                  editingTeamMember
-                    ? updateTeamMember.mutate({ id: editingTeamMember.id, data })
-                    : addTeamMember.mutate(data)
-                )}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Role</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Software Engineer" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="department"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Department</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Engineering" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="john@example.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="startDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Start Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="skills"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Skills (comma-separated)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="React, TypeScript, Node.js" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={teamMemberForm.control}
-                      name="salary"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Salary (optional)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="60000" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" className="md:col-span-2">
-                      {editingTeamMember ? "Update Team Member" : "Add Team Member"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+              </span>
+              {showTeamForm ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
 
-          {/* Team Members List */}
+          {showTeamForm && (
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <Form {...teamMemberForm}>
+                  <form onSubmit={teamMemberForm.handleSubmit((data) =>
+                    editingTeamMember
+                      ? updateTeamMember.mutate({ id: editingTeamMember.id, data })
+                      : addTeamMember.mutate(data)
+                  )}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="John Doe" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Software Engineer" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="department"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Department</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Engineering" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input placeholder="john@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="startDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Start Date</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="skills"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Skills (comma-separated)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="React, TypeScript, Node.js" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={teamMemberForm.control}
+                        name="salary"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Salary (optional)</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="60000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            cancelEdit('team');
+                            setShowTeamForm(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit">
+                          {editingTeamMember ? "Update Team Member" : "Add Team Member"}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingTeam ? (
               <p>Loading team members...</p>
@@ -551,7 +653,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditingTeamMember(member)}
+                          onClick={() => startEdit('team', member)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -613,157 +715,186 @@ export default function TeamPage() {
         </TabsContent>
 
         <TabsContent value="positions">
-          {/* Position form and list with similar edit/delete functionality */}
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Briefcase className="mr-2 h-5 w-5" />
+          <div className="mb-4">
+            <Button 
+              onClick={() => {
+                setShowPositionForm(!showPositionForm);
+                if (!showPositionForm) {
+                  cancelEdit('position');
+                }
+              }}
+              variant="outline"
+              className="w-full justify-between"
+            >
+              <span className="flex items-center">
+                <Briefcase className="mr-2 h-4 w-4" />
                 {editingPosition ? "Edit Position" : "Add Position"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...positionForm}>
-                <form onSubmit={positionForm.handleSubmit((data) =>
-                  editingPosition
-                    ? updatePosition.mutate({ id: editingPosition.id, data })
-                    : addPosition.mutate(data)
-                )}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={positionForm.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Title</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Senior Software Engineer" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={positionForm.control}
-                      name="department"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Department</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Engineering" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={positionForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Describe the role and responsibilities"
-                              className="min-h-[100px]"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={positionForm.control}
-                      name="requirements"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Requirements (comma-separated)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="5+ years experience, React, Node.js" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={positionForm.control}
-                        name="minSalary"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min Salary</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="60000" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={positionForm.control}
-                        name="maxSalary"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Salary</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="80000" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={positionForm.control}
-                      name="location"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Location</FormLabel>
-                          <FormControl>
-                            <Input placeholder="New York, NY" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={positionForm.control}
-                      name="remoteAllowed"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Remote Work Allowed
-                            </FormLabel>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    {/* File upload field */}
-                    <div className="md:col-span-2">
-                      <FormLabel>Attachments</FormLabel>
-                      <Input
-                        type="file"
-                        onChange={(e) => editingPosition && handleFileUpload(e, "position", editingPosition.id)}
-                        disabled={!editingPosition}
-                      />
-                    </div>
-                    <Button type="submit" className="md:col-span-2">
-                      {editingPosition ? "Update Position" : "Add Position"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+              </span>
+              {showPositionForm ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
 
-          {/* Positions list with attachments */}
+          {showPositionForm && (
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <Form {...positionForm}>
+                  <form onSubmit={positionForm.handleSubmit((data) =>
+                    editingPosition
+                      ? updatePosition.mutate({ id: editingPosition.id, data })
+                      : addPosition.mutate(data)
+                  )}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={positionForm.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Senior Software Engineer" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={positionForm.control}
+                        name="department"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Department</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Engineering" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={positionForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Describe the role and responsibilities"
+                                className="min-h-[100px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={positionForm.control}
+                        name="requirements"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Requirements (comma-separated)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="5+ years experience, React, Node.js" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={positionForm.control}
+                          name="minSalary"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Min Salary</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="60000" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={positionForm.control}
+                          name="maxSalary"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Max Salary</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="80000" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <FormField
+                        control={positionForm.control}
+                        name="location"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Location</FormLabel>
+                            <FormControl>
+                              <Input placeholder="New York, NY" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={positionForm.control}
+                        name="remoteAllowed"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">
+                                Remote Work Allowed
+                              </FormLabel>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      {/* File upload field */}
+                      <div className="md:col-span-2">
+                        <FormLabel>Attachments</FormLabel>
+                        <Input
+                          type="file"
+                          onChange={(e) => editingPosition && handleFileUpload(e, "position", editingPosition.id)}
+                          disabled={!editingPosition}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            cancelEdit('position');
+                            setShowPositionForm(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit">
+                          {editingPosition ? "Update Position" : "Add Position"}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingPositions ? (
               <p>Loading positions...</p>
@@ -779,7 +910,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditingPosition(position)}
+                          onClick={() => startEdit('position', position)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -842,195 +973,225 @@ export default function TeamPage() {
         </TabsContent>
 
         <TabsContent value="candidates">
-          {/* Candidate form and list with similar edit/delete functionality */}
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <UserSearch className="mr-2 h-5 w-5" />
+          <div className="mb-4">
+            <Button 
+              onClick={() => {
+                setShowCandidateForm(!showCandidateForm);
+                if (!showCandidateForm) {
+                  cancelEdit('candidate');
+                }
+              }}
+              variant="outline"
+              className="w-full justify-between"
+            >
+              <span className="flex items-center">
+                <UserSearch className="mr-2 h-4 w-4" />
                 {editingCandidate ? "Edit Candidate" : "Add Candidate"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...candidateForm}>
-                <form onSubmit={candidateForm.handleSubmit((data) =>
-                  editingCandidate
-                    ? updateCandidate.mutate({ id: editingCandidate.id, data })
-                    : addCandidate.mutate(data)
-                )}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={candidateForm.control}
-                      name="positionId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Position</FormLabel>
-                          <FormControl>
-                            <select
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                              value={field.value}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            >
-                              <option value={0}>Select a position</option>
-                              {positions?.map((position: any) => (
-                                <option key={position.id} value={position.id}>
-                                  {position.title}
-                                </option>
-                              ))}
-                            </select>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="john@example.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone (optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+1 234 567 8900" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="resumeUrl"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Resume URL (optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://example.com/resume.pdf" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="skills"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Skills (comma-separated)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="React, TypeScript, Node.js" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="experienceYears"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Years of Experience</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="5" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="highlights"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Experience Highlights (comma-separated)</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Led a team of 5, Increased performance by 50%, Reduced costs by 30%"
-                              className="min-h-[100px]"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="notes"
-                      render={({ field }) =>(<FormItem>
-                          <FormLabel>Notes (optional)</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Additional notes about the candidate"
-                              className="min-h-[100px]"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={candidateForm.control}
-                      name="rating"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Rating (1-5)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="5"
-                              placeholder="4"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {/* File upload field */}
-                    <div className="md:col-span-2">
-                      <FormLabel>Attachments</FormLabel>
-                      <Input
-                        type="file"
-                        onChange={(e) => editingCandidate && handleFileUpload(e, "candidate", editingCandidate.id)}
-                        disabled={!editingCandidate}
-                      />
-                    </div>
-                    <Button type="submit" className="md:col-span-2">
-                      {editingCandidate ? "Update Candidate" : "Add Candidate"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+              </span>
+              {showCandidateForm ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
 
-          {/* Candidates list with attachments */}
+          {showCandidateForm && (
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <Form {...candidateForm}>
+                  <form onSubmit={candidateForm.handleSubmit((data) =>
+                    editingCandidate
+                      ? updateCandidate.mutate({ id: editingCandidate.id, data })
+                      : addCandidate.mutate(data)
+                  )}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={candidateForm.control}
+                        name="positionId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Position</FormLabel>
+                            <FormControl>
+                              <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={field.value}
+                                onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              >
+                                <option value={0}>Select a position</option>
+                                {positions?.map((position: any) => (
+                                  <option key={position.id} value={position.id}>
+                                    {position.title}
+                                  </option>
+                                ))}
+                              </select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="John Doe" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input placeholder="john@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone (optional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="+1 234 567 8900" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="resumeUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Resume URL (optional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://example.com/resume.pdf" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="skills"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Skills (comma-separated)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="React, TypeScript, Node.js" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="experienceYears"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Years of Experience</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="5" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="highlights"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Experience Highlights (comma-separated)</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Led a team of 5, Increased performance by 50%, Reduced costs by 30%"
+                                className="min-h-[100px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Notes (optional)</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Additional notes about the candidate"
+                                className="min-h-[100px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={candidateForm.control}
+                        name="rating"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Rating (1-5)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="5"
+                                placeholder="4"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* File upload field */}
+                      <div className="md:col-span-2">
+                        <FormLabel>Attachments</FormLabel>
+                        <Input
+                          type="file"
+                          onChange={(e) => editingCandidate && handleFileUpload(e, "candidate", editingCandidate.id)}
+                          disabled={!editingCandidate}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            cancelEdit('candidate');
+                            setShowCandidateForm(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit">
+                          {editingCandidate ? "Update Candidate" : "Add Candidate"}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingCandidates ? (
               <p>Loading candidates...</p>
@@ -1046,7 +1207,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditingCandidate(candidate)}
+                          onClick={() => startEdit('candidate', candidate)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
