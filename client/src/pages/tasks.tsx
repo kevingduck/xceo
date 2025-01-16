@@ -9,6 +9,12 @@ import { Plus, Loader2 } from "lucide-react";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
 
+const statusMap = {
+  todo: "todo",
+  in_progress: "in_progress",
+  done: "done"
+} as const;
+
 export default function Tasks() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -60,7 +66,7 @@ export default function Tasks() {
       const response = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: statusMap[status as keyof typeof statusMap] }),
         credentials: "include"
       });
 
@@ -98,14 +104,14 @@ export default function Tasks() {
     const taskId = parseInt(active.id.toString());
     const newStatus = over.id.toString();
 
-    if (isNaN(taskId) || !["todo", "inProgress", "completed"].includes(newStatus)) return;
+    if (isNaN(taskId) || !Object.keys(statusMap).includes(newStatus)) return;
 
     updateTaskStatus.mutate({ id: taskId, status: newStatus });
   };
 
-  const todoTasks = tasks.filter(t => t.status === "todo");
-  const inProgressTasks = tasks.filter(t => t.status === "inProgress");
-  const completedTasks = tasks.filter(t => t.status === "completed");
+  const todoTasks = tasks.filter(t => t.status === statusMap.todo);
+  const inProgressTasks = tasks.filter(t => t.status === statusMap.in_progress);
+  const completedTasks = tasks.filter(t => t.status === statusMap.done);
 
   if (isLoading) {
     return (
@@ -167,13 +173,13 @@ export default function Tasks() {
             tasks={todoTasks}
           />
           <DroppableColumn
-            id="inProgress"
+            id="in_progress"
             title="In Progress"
             tasks={inProgressTasks}
           />
           <DroppableColumn
-            id="completed"
-            title="Completed"
+            id="done"
+            title="Done"
             tasks={completedTasks}
           />
         </div>
