@@ -1,0 +1,98 @@
+lish Task Management Syst…
+7:02:03 PM [express] GET /api/business-info 200 in 48ms
+7:02:03 PM [express] GET /api/analytics 304 in 84ms :: []
+7:02:03 PM [express] GET /api/chat 304 in 311ms :: [{"id":103,"content":"where should we start? I ha…
+Error processing AI message: BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0.type: Extra inputs are not permitted"}}
+    at Function.generate (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/error.ts:63:14)
+    at Anthropic.makeStatusError (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:434:21)
+    at Anthropic.makeRequest (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:498:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async processAIMessage (/home/runner/workspace/server/services/ai.ts:111:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26) {
+  status: 400,
+  headers: {
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '90305bd2febefa21-ORD',
+    connection: 'keep-alive',
+    'content-length': '114',
+    'content-type': 'application/json',
+    date: 'Thu, 16 Jan 2025 19:02:14 GMT',
+    'request-id': 'req_01Dmb4aLD7n5n768Un6PL6zd',
+    server: 'cloudflare',
+    via: '1.1 google',
+    'x-robots-tag': 'none',
+    'x-should-retry': 'false'
+  },
+  request_id: 'req_01Dmb4aLD7n5n768Un6PL6zd',
+  error: {
+    type: 'error',
+    error: {
+      type: 'invalid_request_error',
+      message: 'tools.0.type: Extra inputs are not permitted'
+    }
+  }
+}
+Chat error: Error: Failed to process message
+    at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+Application error: {
+  status: 500,
+  message: 'Failed to process message',
+  stack: 'Error: Failed to process message\n' +
+    '    at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)',
+  originalError: Error: Failed to process message
+      at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+}
+7:02:14 PM [express] POST /api/chat 500 in 380ms :: {"message":"Failed to process message"}
+Error processing AI message: BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0.type: Extra inputs are not permitted"}}
+    at Function.generate (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/error.ts:63:14)
+    at Anthropic.makeStatusError (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:434:21)
+    at Anthropic.makeRequest (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:498:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async processAIMessage (/home/runner/workspace/server/services/ai.ts:111:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26) {
+  status: 400,
+  headers: {
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '90305be8ce2efa21-ORD',
+    connection: 'keep-alive',
+    'content-length': '114',
+    'content-type': 'application/json',
+    date: 'Thu, 16 Jan 2025 19:02:17 GMT',
+    'request-id': 'req_01TGzHBAq7B4hXxBb1vvD1DT',
+    server: 'cloudflare',
+    via: '1.1 google',
+    'x-robots-tag': 'none',
+    'x-should-retry': 'false'
+  },
+  request_id: 'req_01TGzHBAq7B4hXxBb1vvD1DT',
+  error: {
+    type: 'error',
+    error: {
+      type: 'invalid_request_error',
+      message: 'tools.0.type: Extra inputs are not permitted'
+    }
+  }
+}
+Chat error: Error: Failed to process message
+    at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+Application error: {
+  status: 500,
+  message: 'Failed to process message',
+  stack: 'Error: Failed to process message\n' +
+    '    at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)',
+  originalError: Error: Failed to process message
+      at processAIMessage (/home/runner/workspace/server/services/ai.ts:177:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/server/routes.ts:525:26)
+}
+7:02:17 PM [express] POST /api/chat 500 in 283ms :: {"message":"Failed to process message"}

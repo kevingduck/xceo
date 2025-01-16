@@ -107,7 +107,7 @@ The create_task function accepts: title (required), description (optional), and 
 
 Respond naturally while keeping this context in mind. If a new task should be created based on the conversation, use the create_task function.`;
 
-    // Call Anthropic API with proper message structure and tool definition
+    // Call Anthropic API with proper message structure
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
@@ -119,9 +119,9 @@ Respond naturally while keeping this context in mind. If a new task should be cr
         })) || []),
         { role: "user", content }
       ],
-      tools: [{
-        type: "function",
-        function: {
+      system: "You are a business management AI assistant that can help create and manage tasks. When a task needs to be created, use the create_task function.",
+      tools: [
+        {
           name: "create_task",
           description: "Create a new task in the system",
           parameters: {
@@ -144,24 +144,32 @@ Respond naturally while keeping this context in mind. If a new task should be cr
             required: ["title"]
           }
         }
-      }]
+      ]
     });
 
-    // Process tool calls if any
-    let createdTask = null;
-    if (response.content[0]?.type === 'tool_call') {
-      const toolCall = response.content[0].tool_calls[0];
-      if (toolCall.function.name === 'create_task') {
-        const args = JSON.parse(toolCall.function.arguments);
-        createdTask = await executeTaskFunction(userId, { name: "create_task", args });
-      }
-    }
-
-    // Safely extract content from the response
+    // Extract text content from response
     const aiContent = response.content
       .filter(c => c.type === 'text')
       .map(c => c.text)
       .join('\n');
+
+    // Handle tool calls if present
+    let createdTask = null;
+    for (const content of response.content) {
+      if ('tool_calls' in content) {
+        const toolCalls = content.tool_calls || [];
+        for (const toolCall of toolCalls) {
+          if (toolCall.name === 'create_task') {
+            try {
+              const args = JSON.parse(toolCall.arguments);
+              createdTask = await executeTaskFunction(userId, { name: "create_task", args });
+            } catch (error) {
+              console.error("Error processing tool call:", error);
+            }
+          }
+        }
+      }
+    }
 
     // Extract suggested actions based on AI response
     const suggestedActions = extractSuggestedActions(aiContent, tasksContext);
@@ -239,7 +247,7 @@ export async function summarizeAndStoreConversation(
       .map(msg => `${msg.role}: ${msg.content}`)
       .join("\n");
 
-    // Generate summary using Claude with proper message structure
+    // Generate summary using Claude
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
