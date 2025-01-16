@@ -78,27 +78,13 @@ const offeringFormSchema = z.object({
   }).optional(),
 });
 
-const featureFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().min(1, "Description is required"),
-  status: z.enum(["available", "deprecated", "coming_soon"]).default("available"),
-});
-
-const roadmapItemFormSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  plannedDate: z.string().optional(),
-  status: z.enum(["planned", "in_progress", "completed", "delayed"]).default("planned"),
-  priority: z.enum(["low", "medium", "high"]).default("medium"),
-});
-
 const pricingTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
   price: z.number().min(0, "Price must be positive"),
   billingCycle: z.string().optional(),
   offeringId: z.number(),
-  features: z.array(z.string()).optional(),
+  features: z.array(z.string()).default([]),
 });
 
 export default function OfferingsPage() {
@@ -197,14 +183,26 @@ export default function OfferingsPage() {
 
   const addPricingTier = useMutation({
     mutationFn: async (data: z.infer<typeof pricingTierSchema>) => {
+      console.log('Submitting pricing tier:', data); 
       const res = await fetch("/api/pricing-tiers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Error creating pricing tier:', errorText); 
+        throw new Error(errorText);
+      }
       return res.json();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pricing-tiers"] });
@@ -283,7 +281,7 @@ export default function OfferingsPage() {
 
   // Helper functions
   const handleEditOffering = (offering: any, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent selection when clicking edit
+    e.stopPropagation(); 
     setEditingOffering(offering);
     setShowOfferingForm(true);
     offeringForm.reset({
@@ -296,7 +294,7 @@ export default function OfferingsPage() {
   };
 
   const handleDeleteOffering = (offering: any, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent selection when clicking delete
+    e.stopPropagation(); 
     if (confirm("Are you sure you want to delete this offering?")) {
       deleteOffering.mutate(offering.id);
     }
@@ -686,11 +684,22 @@ export default function OfferingsPage() {
           </DialogHeader>
           <Form {...pricingTierForm}>
             <form onSubmit={pricingTierForm.handleSubmit((data) => {
-              // Ensure offeringId is set
+              if (!selectedOffering) {
+                toast({
+                  title: "Error",
+                  description: "Please select an offering first",
+                  variant: "destructive",
+                });
+                return;
+              }
+
               const formData = {
                 ...data,
                 offeringId: selectedOffering.id,
+                features: data.features || [], 
               };
+
+              console.log('Submitting form data:', formData); 
 
               if (editingTier) {
                 updatePricingTier.mutate({ id: editingTier.id, data: formData });
