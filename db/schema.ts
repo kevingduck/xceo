@@ -213,6 +213,72 @@ export const roadmapItems = pgTable("roadmap_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
+// New tables for pricing tiers and packages
+export const pricingTiers = pgTable("pricing_tiers", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  offeringId: integer("offering_id").references(() => offerings.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  price: jsonb("price").$type<{
+    amount: number;
+    currency: string;
+    billingCycle: string;
+    setupFee?: number;
+  }>().notNull(),
+  isPopular: boolean("is_popular").default(false),
+  maxUsers: integer("max_users"),
+  status: text("status").notNull().default("active"), // active, archived
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const pricingFeatures = pgTable("pricing_features", {
+  id: serial("id").primaryKey(),
+  tierId: integer("tier_id").references(() => pricingTiers.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  type: text("type").notNull(), // boolean, quantity, text
+  value: text("value").notNull(), // "true", "10 users", "Unlimited storage"
+  sortOrder: integer("sort_order").notNull().default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const packages = pgTable("packages", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  slug: text("slug").notNull(),
+  status: text("status").notNull().default("active"), // active, archived, draft
+  price: jsonb("price").$type<{
+    amount: number;
+    currency: string;
+    billingCycle: string;
+    discount?: {
+      type: 'percentage' | 'fixed';
+      value: number;
+    };
+  }>(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const packageOfferings = pgTable("package_offerings", {
+  id: serial("id").primaryKey(),
+  packageId: integer("package_id").references(() => packages.id).notNull(),
+  offeringId: integer("offering_id").references(() => offerings.id).notNull(),
+  tierId: integer("tier_id").references(() => pricingTiers.id),
+  sortOrder: integer("sort_order").notNull().default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
@@ -337,6 +403,50 @@ export const roadmapItemsRelations = relations(roadmapItems, ({ one }) => ({
   })
 }));
 
+// Add relations
+export const pricingTiersRelations = relations(pricingTiers, ({ one, many }) => ({
+  user: one(users, {
+    fields: [pricingTiers.userId],
+    references: [users.id]
+  }),
+  offering: one(offerings, {
+    fields: [pricingTiers.offeringId],
+    references: [offerings.id]
+  }),
+  features: many(pricingFeatures)
+}));
+
+export const pricingFeaturesRelations = relations(pricingFeatures, ({ one }) => ({
+  tier: one(pricingTiers, {
+    fields: [pricingFeatures.tierId],
+    references: [pricingTiers.id]
+  })
+}));
+
+export const packagesRelations = relations(packages, ({ one, many }) => ({
+  user: one(users, {
+    fields: [packages.userId],
+    references: [users.id]
+  }),
+  packageOfferings: many(packageOfferings)
+}));
+
+export const packageOfferingsRelations = relations(packageOfferings, ({ one }) => ({
+  package: one(packages, {
+    fields: [packageOfferings.packageId],
+    references: [packages.id]
+  }),
+  offering: one(offerings, {
+    fields: [packageOfferings.offeringId],
+    references: [offerings.id]
+  }),
+  tier: one(pricingTiers, {
+    fields: [packageOfferings.tierId],
+    references: [pricingTiers.id]
+  })
+}));
+
+
 // Schemas
 export const insertUserSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -440,6 +550,51 @@ export const roadmapItemSchema = z.object({
   priority: z.enum(["low", "medium", "high"]).default("medium")
 });
 
+// Add schemas for validation
+export const pricingTierSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  price: z.object({
+    amount: z.number().min(0, "Price amount must be non-negative"),
+    currency: z.string(),
+    billingCycle: z.string(),
+    setupFee: z.number().optional()
+  }),
+  isPopular: z.boolean().optional(),
+  maxUsers: z.number().optional(),
+  status: z.enum(["active", "archived"]).default("active")
+});
+
+export const pricingFeatureSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  type: z.enum(["boolean", "quantity", "text"]),
+  value: z.string().min(1, "Value is required"),
+  sortOrder: z.number().optional()
+});
+
+export const packageSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  slug: z.string().min(1, "Slug is required"),
+  status: z.enum(["active", "archived", "draft"]).default("active"),
+  price: z.object({
+    amount: z.number().min(0, "Price amount must be non-negative"),
+    currency: z.string(),
+    billingCycle: z.string(),
+    discount: z.object({
+      type: z.enum(["percentage", "fixed"]),
+      value: z.number().min(0)
+    }).optional()
+  }).optional()
+});
+
+export const packageOfferingSchema = z.object({
+  packageId: z.number(),
+  offeringId: z.number(),
+  tierId: z.number().optional(),
+  sortOrder: z.number().optional()
+});
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -458,3 +613,9 @@ export type Offering = typeof offerings.$inferSelect;
 export type InsertOffering = typeof offerings.$inferInsert;
 export type OfferingFeature = typeof offeringFeatures.$inferSelect;
 export type RoadmapItem = typeof roadmapItems.$inferSelect;
+export type PricingTier = typeof pricingTiers.$inferSelect;
+export type InsertPricingTier = typeof pricingTiers.$inferInsert;
+export type PricingFeature = typeof pricingFeatures.$inferSelect;
+export type Package = typeof packages.$inferSelect;
+export type InsertPackage = typeof packages.$inferInsert;
+export type PackageOffering = typeof packageOfferings.$inferSelect;
