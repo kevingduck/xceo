@@ -2,36 +2,60 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory } from "@db/schema";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates } from "@db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
 
-// Define field validation schema
-const fieldValueSchema = z.object({
-  value: z.any(),
-  type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list'])
+// Define team management schemas
+const teamMemberSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  role: z.string().min(1, "Role is required"),
+  department: z.string().optional(),
+  email: z.string().email("Invalid email address"),
+  startDate: z.string().transform(str => new Date(str)),
+  skills: z.array(z.string()).optional(),
+  bio: z.string().optional(),
+  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
+  salary: z.number().optional()
 });
 
-const fieldUpdateSchema = z.record(z.string(), fieldValueSchema);
-
-const taskSchema = z.object({
+const positionSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  status: z.enum(["todo", "inProgress", "completed"]).default("todo")
+  department: z.string().min(1, "Department is required"),
+  description: z.string().min(1, "Description is required"),
+  requirements: z.array(z.string()).min(1, "At least one requirement is required"),
+  salary: z.object({
+    min: z.number(),
+    max: z.number(),
+    currency: z.string()
+  }).optional(),
+  status: z.enum(["open", "closed", "on_hold"]).default("open"),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  location: z.string().optional(),
+  remoteAllowed: z.boolean().default(false)
 });
 
-const configureCEOSchema = z.object({
-  businessName: z.string().min(1, "Business name is required"),
-  businessDescription: z.string().min(1, "Business description is required"),
-  objectives: z.array(z.string()).min(1, "At least one objective is required")
+const candidateSchema = z.object({
+  positionId: z.number(),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  resumeUrl: z.string().url().optional(),
+  skills: z.array(z.string()).optional(),
+  experience: z.object({
+    years: z.number(),
+    highlights: z.array(z.string())
+  }).optional(),
+  status: z.enum(["applied", "screening", "interviewing", "offered", "rejected", "hired"]).default("applied"),
+  notes: z.string().optional(),
+  rating: z.number().min(1).max(5).optional()
 });
 
 export function registerRoutes(app: Express): Server {
   // Tasks API
   app.get("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const userTasks = await db.query.tasks.findMany({
         where: eq(tasks.userId, req.user.id),
@@ -46,7 +70,6 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const result = taskSchema.safeParse(req.body);
       if (!result.success) {
@@ -54,7 +77,6 @@ export function registerRoutes(app: Express): Server {
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-
       const [task] = await db.insert(tasks)
         .values({
           ...result.data,
@@ -70,33 +92,27 @@ export function registerRoutes(app: Express): Server {
 
   app.patch("/api/tasks/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const taskId = parseInt(req.params.id);
       if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
-
       const [existingTask] = await db
         .select()
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .limit(1);
-
       if (!existingTask) return res.status(404).send("Task not found");
       if (existingTask.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
       const result = taskSchema.partial().safeParse(req.body);
       if (!result.success) {
         return res.status(400).send(
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-
       const [updatedTask] = await db
         .update(tasks)
         .set({ ...result.data, updatedAt: new Date() })
         .where(eq(tasks.id, taskId))
         .returning();
-
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task:", error);
@@ -106,20 +122,16 @@ export function registerRoutes(app: Express): Server {
 
   app.delete("/api/tasks/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const taskId = parseInt(req.params.id);
       if (isNaN(taskId)) return res.status(400).send("Invalid task ID");
-
       const [existingTask] = await db
         .select()
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .limit(1);
-
       if (!existingTask) return res.status(404).send("Task not found");
       if (existingTask.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
       await db.delete(tasks).where(eq(tasks.id, taskId));
       res.json({ success: true });
     } catch (error) {
@@ -133,7 +145,6 @@ export function registerRoutes(app: Express): Server {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
-
     try {
       const result = configureCEOSchema.safeParse(req.body);
       if (!result.success) {
@@ -141,9 +152,7 @@ export function registerRoutes(app: Express): Server {
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-
       const { businessName, businessDescription, objectives } = result.data;
-
       // Update user profile
       await db
         .update(users)
@@ -153,7 +162,6 @@ export function registerRoutes(app: Express): Server {
           businessObjectives: objectives
         })
         .where(eq(users.id, req.user.id));
-
       // Create initial business info entries with detailed templates
       const sections = [
         {
@@ -288,7 +296,6 @@ Culture & Values:
           metadata: { source: "initial-setup" }
         }
       ];
-
       // Insert initial business info sections
       const fieldsWithType = {
         company_name: {
@@ -298,7 +305,6 @@ Culture & Values:
           updatedBy: "system" as const
         }
       };
-
       await db.insert(businessInfo).values(
         sections.map(section => ({
           section: section.section,
@@ -309,7 +315,6 @@ Culture & Values:
           metadata: { source: "initial-setup" }
         }))
       );
-
       res.json({ message: "CEO configured successfully" });
     } catch (error) {
       console.error("Error configuring CEO:", error);
@@ -322,7 +327,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
-
     try {
       // Get current user's business info
       const [user] = await db
@@ -330,11 +334,9 @@ Culture & Values:
         .from(users)
         .where(eq(users.id, req.user.id))
         .limit(1);
-
       if (!user.businessName) {
         return res.status(400).send("Please configure your business first");
       }
-
       // Define required sections with default content
       const requiredSections = [
         {
@@ -370,13 +372,11 @@ Culture & Values:
           defaultFields: {}
         }
       ];
-
       // Get existing sections
       const existingSections = await db
         .select()
         .from(businessInfo)
         .where(eq(businessInfo.userId, req.user.id));
-
       // Group by section to get latest entries
       const latestSectionMap = existingSections.reduce((acc, curr) => {
         if (!acc[curr.section] || acc[curr.section].createdAt < curr.createdAt) {
@@ -384,7 +384,6 @@ Culture & Values:
         }
         return acc;
       }, {} as Record<string, typeof existingSections[0]>);
-
       // Create missing sections
       const sectionsToCreate = requiredSections
         .filter(required => !latestSectionMap[required.section])
@@ -396,7 +395,6 @@ Culture & Values:
           fields: section.defaultFields,
           metadata: { source: "auto-init" }
         }));
-
       let createdSections: typeof existingSections = [];
       if (sectionsToCreate.length > 0) {
         createdSections = await db
@@ -404,13 +402,11 @@ Culture & Values:
           .values(sectionsToCreate)
           .returning();
       }
-
       // Combine existing and newly created sections
       const allSections = [
         ...Object.values(latestSectionMap),
         ...createdSections
       ];
-
       res.json({
         message: sectionsToCreate.length > 0
           ? "Sections initialized successfully"
@@ -436,27 +432,23 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
-
     try {
       const infoId = parseInt(req.params.id);
       if (isNaN(infoId)) {
         return res.status(400).send("Invalid business info ID");
       }
-
       // Get existing business info
       const [existingInfo] = await db
         .select()
         .from(businessInfo)
         .where(eq(businessInfo.id, infoId))
         .limit(1);
-
       if (!existingInfo) {
         return res.status(404).send("Business info not found");
       }
       if (existingInfo.userId !== req.user.id) {
         return res.status(403).send("Unauthorized");
       }
-
       // Validate field updates
       const result = fieldUpdateSchema.safeParse(req.body);
       if (!result.success) {
@@ -464,7 +456,6 @@ Culture & Values:
           "Invalid fields: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-
       // Save to history first
       await db.insert(businessInfoHistory).values({
         businessInfoId: infoId,
@@ -475,7 +466,6 @@ Culture & Values:
         reason: 'Manual field update',
         metadata: { source: 'field-update' }
       });
-
       // Update only the specified fields
       const updatedFields = {
         ...(existingInfo.fields || {}),
@@ -489,7 +479,6 @@ Culture & Values:
           }
         }), {})
       };
-
       // Update the business info
       const [updatedInfo] = await db
         .update(businessInfo)
@@ -499,11 +488,9 @@ Culture & Values:
         })
         .where(eq(businessInfo.id, infoId))
         .returning();
-
       if (!updatedInfo) {
         throw new Error('Failed to update business info fields');
       }
-
       res.json(updatedInfo);
     } catch (error) {
       console.error("Error updating business info fields:", error);
@@ -514,14 +501,12 @@ Culture & Values:
   // Chat API
   app.get("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       // Get all messages to maintain context
       const messages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
         orderBy: (messages, { asc }) => [asc(messages.createdAt)]
       });
-
       res.json(messages);
     } catch (error) {
       console.error("Error fetching chat messages:", error);
@@ -531,12 +516,10 @@ Culture & Values:
 
   app.post("/api/chat", async (req, res, next) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       if (!req.body.content) {
         return res.status(400).send("Message content is required");
       }
-
       // First save the user's message
       const [userMessage] = await db.insert(chatMessages)
         .values({
@@ -546,21 +529,18 @@ Culture & Values:
           metadata: { timestamp: new Date().toISOString() }
         })
         .returning();
-
       // Get business context for AI
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, req.user.id))
         .limit(1);
-
       // Get recent messages for context
       const recentMessages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
         orderBy: (messages, { desc }) => [desc(messages.createdAt)],
         limit: 10
       });
-
       const businessContext = user.businessName ? {
         name: user.businessName,
         description: user.businessDescription || '',
@@ -573,14 +553,12 @@ Culture & Values:
             content: msg.content
           }))
       } : undefined;
-
       // Process with AI and get response
       const aiResponse = await processAIMessage(
         req.user.id,
         req.body.content,
         businessContext
       );
-
       // Save AI's response with metadata including suggested actions
       const [savedResponse] = await db.insert(chatMessages)
         .values({
@@ -593,7 +571,6 @@ Culture & Values:
           }
         })
         .returning();
-
       res.json(savedResponse);
     } catch (error) {
       console.error("Chat error:", error);
@@ -604,7 +581,6 @@ Culture & Values:
   // Analytics API
   app.get("/api/analytics", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     const userAnalytics = await db.query.analytics.findMany({
       where: eq(analytics.userId, req.user.id)
     });
@@ -616,7 +592,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-
     try {
       const allUsers = await db
         .select()
@@ -632,7 +607,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-
     try {
       const allBusinessInfo = await db
         .select()
@@ -648,7 +622,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-
     try {
       const allTasks = await db
         .select()
@@ -664,7 +637,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-
     try {
       const allMessages = await db
         .select()
@@ -680,7 +652,6 @@ Culture & Values:
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-
     try {
       const allAnalytics = await db
         .select()
@@ -689,6 +660,317 @@ Culture & Values:
     } catch (error) {
       console.error("Error fetching analytics:", error);
       res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // Team Members API
+  app.get("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const members = await db.query.teamMembers.findMany({
+        where: eq(teamMembers.userId, req.user.id),
+        orderBy: (members, { desc }) => [desc(members.createdAt)]
+      });
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      res.status(500).send("Failed to fetch team members");
+    }
+  });
+
+  app.post("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const result = teamMemberSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [member] = await db.insert(teamMembers)
+        .values({
+          ...result.data,
+          userId: req.user.id
+        })
+        .returning();
+      res.json(member);
+    } catch (error) {
+      console.error("Error creating team member:", error);
+      res.status(500).send("Failed to create team member");
+    }
+  });
+
+  app.patch("/api/team-members/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const teamMemberId = parseInt(req.params.id);
+      if (isNaN(teamMemberId)) return res.status(400).send("Invalid team member ID");
+
+      const [existingMember] = await db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.id, teamMemberId))
+        .limit(1);
+
+      if (!existingMember) return res.status(404).send("Team member not found");
+      if (existingMember.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = teamMemberSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedMember] = await db
+        .update(teamMembers)
+        .set({ ...result.data, updatedAt: new Date() })
+        .where(eq(teamMembers.id, teamMemberId))
+        .returning();
+
+      res.json(updatedMember);
+    } catch (error) {
+      console.error("Error updating team member:", error);
+      res.status(500).send("Failed to update team member");
+    }
+  });
+
+
+  app.delete("/api/team-members/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const teamMemberId = parseInt(req.params.id);
+      if (isNaN(teamMemberId)) return res.status(400).send("Invalid team member ID");
+
+      const [existingMember] = await db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.id, teamMemberId))
+        .limit(1);
+
+      if (!existingMember) return res.status(404).send("Team member not found");
+      if (existingMember.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      await db.delete(teamMembers).where(eq(teamMembers.id, teamMemberId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting team member:", error);
+      res.status(500).send("Failed to delete team member");
+    }
+  });
+
+  // Positions API
+  app.get("/api/positions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const openPositions = await db.query.positions.findMany({
+        where: eq(positions.userId, req.user.id),
+        orderBy: (positions, { desc }) => [desc(positions.createdAt)]
+      });
+      res.json(openPositions);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      res.status(500).send("Failed to fetch positions");
+    }
+  });
+
+  app.post("/api/positions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const result = positionSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [position] = await db.insert(positions)
+        .values({
+          ...result.data,
+          userId: req.user.id
+        })
+        .returning();
+      res.json(position);
+    } catch (error) {
+      console.error("Error creating position:", error);
+      res.status(500).send("Failed to create position");
+    }
+  });
+
+  app.patch("/api/positions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const positionId = parseInt(req.params.id);
+      if (isNaN(positionId)) return res.status(400).send("Invalid position ID");
+
+      const [existingPosition] = await db
+        .select()
+        .from(positions)
+        .where(eq(positions.id, positionId))
+        .limit(1);
+
+      if (!existingPosition) return res.status(404).send("Position not found");
+      if (existingPosition.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = positionSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedPosition] = await db
+        .update(positions)
+        .set({ ...result.data, updatedAt: new Date() })
+        .where(eq(positions.id, positionId))
+        .returning();
+
+      res.json(updatedPosition);
+    } catch (error) {
+      console.error("Error updating position:", error);
+      res.status(500).send("Failed to update position");
+    }
+  });
+
+  app.delete("/api/positions/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const positionId = parseInt(req.params.id);
+      if (isNaN(positionId)) return res.status(400).send("Invalid position ID");
+
+      const [existingPosition] = await db
+        .select()
+        .from(positions)
+        .where(eq(positions.id, positionId))
+        .limit(1);
+
+      if (!existingPosition) return res.status(404).send("Position not found");
+      if (existingPosition.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      await db.delete(positions).where(eq(positions.id, positionId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting position:", error);
+      res.status(500).send("Failed to delete position");
+    }
+  });
+
+  // Candidates API
+  app.get("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const allCandidates = await db.query.candidates.findMany({
+        where: eq(candidates.userId, req.user.id),
+        orderBy: (candidates, { desc }) => [desc(candidates.createdAt)]
+      });
+      res.json(allCandidates);
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
+      res.status(500).send("Failed to fetch candidates");
+    }
+  });
+
+  app.post("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const result = candidateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      // Verify position exists and belongs to user
+      const [position] = await db
+        .select()
+        .from(positions)
+        .where(eq(positions.id, result.data.positionId))
+        .limit(1);
+
+      if (!position) return res.status(404).send("Position not found");
+      if (position.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const [candidate] = await db.insert(candidates)
+        .values({
+          ...result.data,
+          userId: req.user.id
+        })
+        .returning();
+      res.json(candidate);
+    } catch (error) {
+      console.error("Error creating candidate:", error);
+      res.status(500).send("Failed to create candidate");
+    }
+  });
+
+  app.patch("/api/candidates/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const candidateId = parseInt(req.params.id);
+      if (isNaN(candidateId)) return res.status(400).send("Invalid candidate ID");
+
+      const [existingCandidate] = await db
+        .select()
+        .from(candidates)
+        .where(eq(candidates.id, candidateId))
+        .limit(1);
+
+      if (!existingCandidate) return res.status(404).send("Candidate not found");
+      if (existingCandidate.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = candidateSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedCandidate] = await db
+        .update(candidates)
+        .set({ ...result.data, updatedAt: new Date() })
+        .where(eq(candidates.id, candidateId))
+        .returning();
+
+      res.json(updatedCandidate);
+    } catch (error) {
+      console.error("Error updating candidate:", error);
+      res.status(500).send("Failed to update candidate");
+    }
+  });
+
+  app.delete("/api/candidates/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const candidateId = parseInt(req.params.id);
+      if (isNaN(candidateId)) return res.status(400).send("Invalid candidate ID");
+
+      const [existingCandidate] = await db
+        .select()
+        .from(candidates)
+        .where(eq(candidates.id, candidateId))
+        .limit(1);
+
+      if (!existingCandidate) return res.status(404).send("Candidate not found");
+      if (existingCandidate.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      await db.delete(candidates).where(eq(candidates.id, candidateId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      res.status(500).send("Failed to delete candidate");
     }
   });
 
@@ -705,7 +987,10 @@ Culture & Values:
         db.delete(chatMessages).where(eq(chatMessages.userId, req.user.id)),
         db.delete(analytics).where(eq(analytics.userId, req.user.id)),
         db.delete(businessInfoHistory).where(eq(businessInfoHistory.userId, req.user.id)),
-        db.delete(businessInfo).where(eq(businessInfo.userId, req.user.id))
+        db.delete(businessInfo).where(eq(businessInfo.userId, req.user.id)),
+        db.delete(teamMembers).where(eq(teamMembers.userId, req.user.id)),
+        db.delete(positions).where(eq(positions.userId, req.user.id)),
+        db.delete(candidates).where(eq(candidates.userId, req.user.id))
       ]);
 
       // Reset user's business configuration
@@ -738,7 +1023,10 @@ Culture & Values:
         userAnalytics,
         userBusinessInfo,
         userBusinessInfoHistory,
-        userData
+        userData,
+        userTeamMembers,
+        userPositions,
+        userCandidates
       ] = await Promise.all([
         db.query.tasks.findMany({
           where: eq(tasks.userId, req.user.id)
@@ -765,6 +1053,15 @@ Culture & Values:
             businessObjectives: true,
             createdAt: true
           }
+        }),
+        db.query.teamMembers.findMany({
+          where: eq(teamMembers.userId, req.user.id)
+        }),
+        db.query.positions.findMany({
+          where: eq(positions.userId, req.user.id)
+        }),
+        db.query.candidates.findMany({
+          where: eq(candidates.userId, req.user.id)
         })
       ]);
 
@@ -775,6 +1072,9 @@ Culture & Values:
         analytics: userAnalytics,
         businessInfo: userBusinessInfo,
         businessInfoHistory: userBusinessInfoHistory,
+        teamMembers: userTeamMembers,
+        positions: userPositions,
+        candidates: userCandidates,
         exportDate: new Date().toISOString()
       };
 
@@ -836,6 +1136,27 @@ Culture & Values:
             .where(eq(analytics.id, tableId))
             .returning();
           break;
+        case 'team_members':
+          [result] = await db
+            .update(teamMembers)
+            .set(req.body)
+            .where(eq(teamMembers.id, tableId))
+            .returning();
+          break;
+        case 'positions':
+          [result] = await db
+            .update(positions)
+            .set(req.body)
+            .where(eq(positions.id, tableId))
+            .returning();
+          break;
+        case 'candidates':
+          [result] = await db
+            .update(candidates)
+            .set(req.body)
+            .where(eq(candidates.id, tableId))
+            .returning();
+          break;
         default:
           return res.status(400).json({ message: "Invalid table name" });
       }
@@ -873,7 +1194,10 @@ Culture & Values:
             db.delete(chatMessages).where(inArray(chatMessages.userId, ids)),
             db.delete(analytics).where(inArray(analytics.userId, ids)),
             db.delete(businessInfoHistory).where(inArray(businessInfoHistory.userId, ids)),
-            db.delete(businessInfo).where(inArray(businessInfo.userId, ids))
+            db.delete(businessInfo).where(inArray(businessInfo.userId, ids)),
+            db.delete(teamMembers).where(inArray(teamMembers.userId, ids)),
+            db.delete(positions).where(inArray(positions.userId, ids)),
+            db.delete(candidates).where(inArray(candidates.userId, ids))
           ]);
           // Then delete the users
           result = await db
@@ -908,6 +1232,24 @@ Culture & Values:
           result = await db
             .delete(analytics)
             .where(inArray(analytics.id, ids))
+            .returning();
+          break;
+        case 'team_members':
+          result = await db
+            .delete(teamMembers)
+            .where(inArray(teamMembers.id, ids))
+            .returning();
+          break;
+        case 'positions':
+          result = await db
+            .delete(positions)
+            .where(inArray(positions.id, ids))
+            .returning();
+          break;
+        case 'candidates':
+          result = await db
+            .delete(candidates)
+            .where(inArray(candidates.id, ids))
             .returning();
           break;
         default:

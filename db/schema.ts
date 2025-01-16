@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -87,12 +87,75 @@ export const analytics = pgTable("analytics", {
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 
+// New tables for team management
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  department: text("department"),
+  email: text("email").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  skills: jsonb("skills").$type<string[]>(),
+  bio: text("bio"),
+  status: text("status").notNull().default("active"),
+  salary: integer("salary"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const positions = pgTable("positions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  department: text("department").notNull(),
+  description: text("description").notNull(),
+  requirements: jsonb("requirements").$type<string[]>().notNull(),
+  salary: jsonb("salary").$type<{
+    min: number;
+    max: number;
+    currency: string;
+  }>(),
+  status: text("status").notNull().default("open"),
+  priority: text("priority").default("medium"),
+  location: text("location"),
+  remoteAllowed: boolean("remote_allowed").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const candidates = pgTable("candidates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  positionId: integer("position_id").references(() => positions.id).notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  resumeUrl: text("resume_url"),
+  skills: jsonb("skills").$type<string[]>(),
+  experience: jsonb("experience").$type<{
+    years: number;
+    highlights: string[];
+  }>(),
+  status: text("status").notNull().default("applied"),
+  notes: text("notes"),
+  rating: integer("rating"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
   chatMessages: many(chatMessages),
   analytics: many(analytics),
-  businessInfo: many(businessInfo)
+  businessInfo: many(businessInfo),
+  teamMembers: many(teamMembers),
+  positions: many(positions),
+  candidates: many(candidates)
 }));
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
@@ -135,9 +198,42 @@ export const analyticsRelations = relations(analytics, ({ one }) => ({
   })
 }));
 
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  user: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id]
+  })
+}));
+
+export const positionsRelations = relations(positions, ({ one, many }) => ({
+  user: one(users, {
+    fields: [positions.userId],
+    references: [users.id]
+  }),
+  candidates: many(candidates)
+}));
+
+export const candidatesRelations = relations(candidates, ({ one }) => ({
+  user: one(users, {
+    fields: [candidates.userId],
+    references: [users.id]
+  }),
+  position: one(positions, {
+    fields: [candidates.positionId],
+    references: [positions.id]
+  })
+}));
+
 // Schemas
 export const insertBusinessInfoSchema = createInsertSchema(businessInfo);
 export const selectBusinessInfoSchema = createSelectSchema(businessInfo);
+export const insertTeamMemberSchema = createInsertSchema(teamMembers);
+export const selectTeamMemberSchema = createSelectSchema(teamMembers);
+export const insertPositionSchema = createInsertSchema(positions);
+export const selectPositionSchema = createSelectSchema(positions);
+export const insertCandidateSchema = createInsertSchema(candidates);
+export const selectCandidateSchema = createSelectSchema(candidates);
+
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -147,6 +243,9 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type Analytics = typeof analytics.$inferSelect;
 export type BusinessInfo = typeof businessInfo.$inferSelect;
 export type BusinessInfoHistory = typeof businessInfoHistory.$inferSelect;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type Position = typeof positions.$inferSelect;
+export type Candidate = typeof candidates.$inferSelect;
 
 // Additional schemas
 export const insertUserSchema = z.object({

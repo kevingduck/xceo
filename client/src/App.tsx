@@ -13,6 +13,7 @@ import Chat from "@/pages/chat";
 import Tasks from "@/pages/tasks";
 import Business from "@/pages/business";
 import Analytics from "@/pages/analytics";
+import Team from "@/pages/team";
 import Admin from "@/pages/admin";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -50,6 +51,7 @@ function ProtectedRoutes() {
         <Route path="/chat" component={Chat} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/business" component={Business} />
+        <Route path="/team" component={Team} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/configure-ceo" component={ConfigureCEO} />
         <Route path="/settings" component={Settings} />
