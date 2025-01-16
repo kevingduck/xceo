@@ -18,6 +18,7 @@ import Admin from "@/pages/admin";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import Offerings from "@/pages/offerings";
 
 function ProtectedRoutes() {
   const { user, isLoading } = useUser();
@@ -51,6 +52,7 @@ function ProtectedRoutes() {
         <Route path="/chat" component={Chat} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/business" component={Business} />
+        <Route path="/offerings" component={Offerings} />
         <Route path="/team" component={Team} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/configure-ceo" component={ConfigureCEO} />

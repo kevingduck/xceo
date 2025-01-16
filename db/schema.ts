@@ -171,6 +171,48 @@ export const conversationSummaries = pgTable("conversation_summaries", {
   metadata: jsonb("metadata").$type<Record<string, any>>()
 });
 
+// New tables for offerings management
+export const offerings = pgTable("offerings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  type: text("type").notNull(), // 'product' or 'service'
+  status: text("status").notNull().default("active"), // active, discontinued, planned
+  price: jsonb("price").$type<{
+    amount: number;
+    currency: string;
+    billingCycle?: string;
+  }>(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const offeringFeatures = pgTable("offering_features", {
+  id: serial("id").primaryKey(),
+  offeringId: integer("offering_id").references(() => offerings.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("available"), // available, deprecated, coming_soon
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const roadmapItems = pgTable("roadmap_items", {
+  id: serial("id").primaryKey(),
+  offeringId: integer("offering_id").references(() => offerings.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  plannedDate: timestamp("planned_date"),
+  status: text("status").notNull().default("planned"), // planned, in_progress, completed, delayed
+  priority: text("priority").notNull().default("medium"), // low, medium, high
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
@@ -180,7 +222,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   positions: many(positions),
   candidates: many(candidates),
-  conversationSummaries: many(conversationSummaries)
+  conversationSummaries: many(conversationSummaries),
+  offerings: many(offerings)
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -270,6 +313,30 @@ export const conversationSummariesRelations = relations(conversationSummaries, (
   })
 }));
 
+// Add relations for offerings
+export const offeringsRelations = relations(offerings, ({ one, many }) => ({
+  user: one(users, {
+    fields: [offerings.userId],
+    references: [users.id]
+  }),
+  features: many(offeringFeatures),
+  roadmapItems: many(roadmapItems)
+}));
+
+export const offeringFeaturesRelations = relations(offeringFeatures, ({ one }) => ({
+  offering: one(offerings, {
+    fields: [offeringFeatures.offeringId],
+    references: [offerings.id]
+  })
+}));
+
+export const roadmapItemsRelations = relations(roadmapItems, ({ one }) => ({
+  offering: one(offerings, {
+    fields: [roadmapItems.offeringId],
+    references: [offerings.id]
+  })
+}));
+
 // Schemas
 export const insertUserSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -346,6 +413,34 @@ export const conversationSummarySchema = z.object({
   })
 });
 
+// Add schemas for offerings management
+export const offeringSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  type: z.enum(["product", "service"]),
+  status: z.enum(["active", "discontinued", "planned"]).default("active"),
+  price: z.object({
+    amount: z.number(),
+    currency: z.string(),
+    billingCycle: z.string().optional()
+  }).optional()
+});
+
+export const featureSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  status: z.enum(["available", "deprecated", "coming_soon"]).default("available")
+});
+
+export const roadmapItemSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  plannedDate: z.string().optional(),
+  status: z.enum(["planned", "in_progress", "completed", "delayed"]).default("planned"),
+  priority: z.enum(["low", "medium", "high"]).default("medium")
+});
+
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = typeof users.$inferSelect;
@@ -359,3 +454,7 @@ export type Position = typeof positions.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type ConversationSummary = typeof conversationSummaries.$inferSelect;
+export type Offering = typeof offerings.$inferSelect;
+export type InsertOffering = typeof offerings.$inferInsert;
+export type OfferingFeature = typeof offeringFeatures.$inferSelect;
+export type RoadmapItem = typeof roadmapItems.$inferSelect;

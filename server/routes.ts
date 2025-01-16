@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries } from "@db/schema";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, offerings, offeringFeatures, roadmapItems, offeringSchema, featureSchema, roadmapItemSchema } from "@db/schema";
 import { eq, inArray, desc } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
@@ -1420,6 +1420,247 @@ Culture & Values:
     } catch (error) {
       console.error("Error updating candidate:", error);
       res.status(500).send("Failed to update candidate");
+    }
+  });
+
+  // Offerings API
+  app.get("/api/offerings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const userOfferings = await db.query.offerings.findMany({
+        where: eq(offerings.userId, req.user.id),
+        orderBy: (offerings, { desc }) => [desc(offerings.createdAt)]
+      });
+      res.json(userOfferings);
+    } catch (error) {
+      console.error("Error fetching offerings:", error);
+      res.status(500).send("Failed to fetch offerings");
+    }
+  });
+
+  app.post("/api/offerings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const result = offeringSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [offering] = await db.insert(offerings)
+        .values({
+          ...result.data,
+          userId: req.user.id
+        })
+        .returning();
+      res.json(offering);
+    } catch (error) {
+      console.error("Error creating offering:", error);
+      res.status(500).send("Failed to create offering");
+    }
+  });
+
+  app.put("/api/offerings/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [existingOffering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!existingOffering) return res.status(404).send("Offering not found");
+      if (existingOffering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = offeringSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [updatedOffering] = await db
+        .update(offerings)
+        .set({
+          ...result.data,
+          updatedAt: new Date()
+        })
+        .where(eq(offerings.id, offeringId))
+        .returning();
+
+      res.json(updatedOffering);
+    } catch (error) {
+      console.error("Error updating offering:", error);
+      res.status(500).send("Failed to update offering");
+    }
+  });
+
+  app.delete("/api/offerings/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [existingOffering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!existingOffering) return res.status(404).send("Offering not found");
+      if (existingOffering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      // First delete related features and roadmap items
+      await db.delete(offeringFeatures).where(eq(offeringFeatures.offeringId, offeringId));
+      await db.delete(roadmapItems).where(eq(roadmapItems.offeringId, offeringId));
+
+      // Then delete the offering
+      await db.delete(offerings).where(eq(offerings.id, offeringId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting offering:", error);
+      res.status(500).send("Failed to delete offering");
+    }
+  });
+
+  // Features API
+  app.get("/api/offerings/:id/features", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [offering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!offering) return res.status(404).send("Offering not found");
+      if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const features = await db.query.offeringFeatures.findMany({
+        where: eq(offeringFeatures.offeringId, offeringId),
+        orderBy: (features, { desc }) => [desc(features.createdAt)]
+      });
+
+      res.json(features);
+    } catch (error) {
+      console.error("Error fetching features:", error);
+      res.status(500).send("Failed to fetch features");
+    }
+  });
+
+  app.post("/api/offerings/:id/features", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [offering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!offering) return res.status(404).send("Offering not found");
+      if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = featureSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [feature] = await db.insert(offeringFeatures)
+        .values({
+          ...result.data,
+          offeringId
+        })
+        .returning();
+
+      res.json(feature);
+    } catch (error) {
+      console.error("Error creating feature:", error);
+      res.status(500).send("Failed to create feature");
+    }
+  });
+
+  // Roadmap API
+  app.get("/api/offerings/:id/roadmap", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [offering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!offering) return res.status(404).send("Offering not found");
+      if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const roadmap = await db.query.roadmapItems.findMany({
+        where: eq(roadmapItems.offeringId, offeringId),
+        orderBy: (items, { desc }) => [desc(items.createdAt)]
+      });
+
+      res.json(roadmap);
+    } catch (error) {
+      console.error("Error fetching roadmap:", error);
+      res.status(500).send("Failed to fetch roadmap");
+    }
+  });
+
+  app.post("/api/offerings/:id/roadmap", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+
+    try {
+      const offeringId = parseInt(req.params.id);
+      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+
+      const [offering] = await db
+        .select()
+        .from(offerings)
+        .where(eq(offerings.id, offeringId))
+        .limit(1);
+
+      if (!offering) return res.status(404).send("Offering not found");
+      if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
+
+      const result = roadmapItemSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).send(
+          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        );
+      }
+
+      const [roadmapItem] = await db.insert(roadmapItems)
+        .values({
+          ...result.data,
+          offeringId
+        })
+        .returning();
+
+      res.json(roadmapItem);
+    } catch (error) {
+      console.error("Error creating roadmap item:", error);
+      res.status(500).send("Failed to create roadmap item");
     }
   });
 
