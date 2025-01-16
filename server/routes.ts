@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates } from "@db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries } from "@db/schema";
+import { eq, inArray, desc } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
 
@@ -529,18 +529,21 @@ Culture & Values:
           metadata: { timestamp: new Date().toISOString() }
         })
         .returning();
+
       // Get business context for AI
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, req.user.id))
         .limit(1);
+
       // Get recent messages for context
       const recentMessages = await db.query.chatMessages.findMany({
         where: eq(chatMessages.userId, req.user.id),
         orderBy: (messages, { desc }) => [desc(messages.createdAt)],
         limit: 10
       });
+
       const businessContext = user.businessName ? {
         name: user.businessName,
         description: user.businessDescription || '',
@@ -553,12 +556,14 @@ Culture & Values:
             content: msg.content
           }))
       } : undefined;
+
       // Process with AI and get response
       const aiResponse = await processAIMessage(
         req.user.id,
         req.body.content,
         businessContext
       );
+
       // Save AI's response with metadata including suggested actions
       const [savedResponse] = await db.insert(chatMessages)
         .values({
@@ -571,6 +576,25 @@ Culture & Values:
           }
         })
         .returning();
+
+      // If summarization is needed and we have enough messages
+      const shouldSummarize = req.body.metadata?.shouldSummarize;
+      if (shouldSummarize) {
+        const [lastSummary] = await db
+          .select()
+          .from(conversationSummaries)
+          .where(eq(conversationSummaries.userId, req.user.id))
+          .orderBy(desc(conversationSummaries.createdAt))
+          .limit(1);
+
+        const summaryStartId = lastSummary?.messageRange.lastMessageId || 0;
+        await summarizeAndStoreConversation(
+          req.user.id,
+          summaryStartId,
+          savedResponse.id
+        );
+      }
+
       res.json(savedResponse);
     } catch (error) {
       console.error("Chat error:", error);
@@ -873,7 +897,7 @@ Culture & Values:
   app.get("/api/candidates", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
-    try {
+    try{
       const allCandidates = await db.query.candidates.findMany({
         where: eq(candidates.userId, req.user.id),
         orderBy: (candidates, { desc }) => [desc(candidates.createdAt)]

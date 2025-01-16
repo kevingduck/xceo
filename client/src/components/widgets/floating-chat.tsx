@@ -21,8 +21,8 @@ export function FloatingChat() {
     }
   }, [messages]);
 
-  // Check if conversation length exceeds limit (e.g., 20 messages)
-  const shouldSummarize = messages.length >= 20;
+  // Increased threshold to 50 messages since Claude can handle more context
+  const shouldSummarize = messages.length >= 50;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,13 +31,11 @@ export function FloatingChat() {
     try {
       setIsLoading(true);
       if (shouldSummarize) {
-        // Send a special message to summarize the conversation
         await sendMessage(
           "Please summarize our conversation so far and create business context from it. " +
-          "Focus on key decisions, insights, and action items."
+          "Focus on key decisions, insights, and action items. Include patterns and relationships you've identified across our discussions."
         );
-        // Clear the chat after summarization
-        // This will be handled by the backend storing the summary
+        setMessage("");
       }
       await sendMessage(message);
       setMessage("");

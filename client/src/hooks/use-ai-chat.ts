@@ -13,7 +13,13 @@ export function useAIChat() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, role: "user" }),
+        body: JSON.stringify({ 
+          content, 
+          role: "user",
+          metadata: {
+            shouldSummarize: messages.length >= 50 
+          }
+        }),
         credentials: "include"
       });
 

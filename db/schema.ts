@@ -156,6 +156,21 @@ export const attachments = pgTable("attachments", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
+// Add new table for conversation summaries
+export const conversationSummaries = pgTable("conversation_summaries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  summary: text("summary").notNull(),
+  keyTopics: jsonb("key_topics").$type<string[]>(),
+  contextualData: jsonb("contextual_data").$type<Record<string, any>>(),
+  messageRange: jsonb("message_range").$type<{
+    firstMessageId: number;
+    lastMessageId: number;
+  }>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>()
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
@@ -165,6 +180,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   positions: many(positions),
   candidates: many(candidates),
+  conversationSummaries: many(conversationSummaries)
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -246,6 +262,14 @@ export const attachmentsRelations = relations(attachments, ({ one }) => ({
   })
 }));
 
+// Add relation to users table
+export const conversationSummariesRelations = relations(conversationSummaries, ({ one }) => ({
+  user: one(users, {
+    fields: [conversationSummaries.userId],
+    references: [users.id]
+  })
+}));
+
 // Schemas
 export const insertUserSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -311,6 +335,17 @@ export const attachmentSchema = z.object({
   fileSize: z.number()
 });
 
+// Add schema and type exports
+export const conversationSummarySchema = z.object({
+  summary: z.string().min(1, "Summary is required"),
+  keyTopics: z.array(z.string()).optional(),
+  contextualData: z.record(z.any()).optional(),
+  messageRange: z.object({
+    firstMessageId: z.number(),
+    lastMessageId: z.number()
+  })
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = typeof users.$inferSelect;
@@ -323,3 +358,4 @@ export type TeamMember = typeof teamMembers.$inferSelect;
 export type Position = typeof positions.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type ConversationSummary = typeof conversationSummaries.$inferSelect;

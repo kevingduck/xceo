@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates } from '@db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages } from '@db/schema';
+import { eq, desc, and, gt } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -225,6 +225,101 @@ async function getBusinessContext(userId: number) {
   }
 }
 
+async function getLatestConversationSummary(userId: number) {
+  try {
+    const [latestSummary] = await db
+      .select()
+      .from(conversationSummaries)
+      .where(eq(conversationSummaries.userId, userId))
+      .orderBy(desc(conversationSummaries.createdAt))
+      .limit(1);
+
+    return latestSummary;
+  } catch (error) {
+    console.error("Error fetching latest conversation summary:", error);
+    return null;
+  }
+}
+
+async function summarizeAndStoreConversation(userId: number, firstMessageId: number, lastMessageId: number) {
+  try {
+    // Get messages to summarize
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.userId, userId),
+          gt(chatMessages.id, firstMessageId),
+          eq(chatMessages.id, lastMessageId)
+        )
+      )
+      .orderBy(desc(chatMessages.createdAt));
+
+    if (!messages.length) {
+      return null;
+    }
+
+    // Create summarization prompt
+    const conversationText = messages
+      .map(msg => `${msg.role}: ${msg.content}`)
+      .join("\n");
+
+    // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: `Please analyze and summarize this conversation comprehensively, focusing on key decisions, insights, and action items. Extract the main topics discussed, and provide contextual understanding that will be valuable for future interactions:
+
+${conversationText}
+
+Format your response as JSON:
+{
+  "summary": "Detailed summary of the conversation, including contextual insights",
+  "keyTopics": ["Topic 1", "Topic 2", ...],
+  "contextualData": {
+    "decisions": ["Decision 1", "Decision 2", ...],
+    "actionItems": ["Action 1", "Action 2", ...],
+    "insights": ["Insight 1", "Insight 2", ...],
+    "relationships": ["Connection 1", "Connection 2", ...],
+    "contextualBackgrounds": ["Context 1", "Context 2", ...]
+  }
+}`
+      }],
+      temperature: 0.7,
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Expected text response from AI');
+    }
+
+    const summaryData = JSON.parse(content.text);
+
+    // Store the summary
+    const [summary] = await db.insert(conversationSummaries)
+      .values({
+        userId,
+        summary: summaryData.summary,
+        keyTopics: summaryData.keyTopics,
+        contextualData: summaryData.contextualData,
+        messageRange: {
+          firstMessageId,
+          lastMessageId
+        },
+        metadata: { source: 'auto-summarization' }
+      })
+      .returning();
+
+    return summary;
+  } catch (error) {
+    console.error("Error summarizing conversation:", error);
+    return null;
+  }
+}
+
 export async function processAIMessage(
   userId: number,
   userMessage: string,
@@ -243,6 +338,9 @@ export async function processAIMessage(
     // Get database context
     const dbContext = await getBusinessContext(userId);
 
+    // Get latest conversation summary for context
+    const latestSummary = await getLatestConversationSummary(userId);
+
     let systemPrompt = businessContext ? 
       `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
 
@@ -253,14 +351,21 @@ export async function processAIMessage(
       Current Database Information:
       ${dbContext}
 
+      ${latestSummary ? `Previous Conversation Context:
+      ${latestSummary.summary}
+      Key Topics: ${latestSummary.keyTopics?.join(", ") || "None"}
+      Contextual Insights: ${JSON.stringify(latestSummary.contextualData, null, 2)}
+      ` : ""}
+
       Your role is to be a thoughtful, strategic advisor who:
-      1. Engages in natural, flowing conversation
-      2. Asks clarifying questions to better understand situations
-      3. Provides actionable strategic advice based on the available business context
+      1. Engages in natural, flowing conversation while maintaining deep context awareness
+      2. Asks clarifying questions when needed to better understand complex situations
+      3. Provides actionable strategic advice based on the full business context
       4. Creates focused tasks when there are clear action items
       5. Updates business fields when new information is provided
-      6. References and utilizes the provided business context in responses
-      7. Maintains context across the conversation
+      6. References and utilizes all available context, including historical conversations
+      7. Maintains long-term memory across multiple conversations through summaries
+      8. Identifies patterns and connections between different aspects of the business
 
       When updating business fields, use this exact format:
       <field_update>
@@ -301,32 +406,25 @@ export async function processAIMessage(
       </suggested_actions>` :
       'You are an AI CEO assistant. Please ask the user to configure their business details first. Be friendly and explain why this configuration would be helpful for our collaboration.';
 
-    console.log("Processing AI message with context:", { 
-      userId,
-      messageLength: userMessage.length,
-      hasBusinessContext: !!businessContext,
-      numPreviousMessages: businessContext?.recentMessages?.length || 0,
-      hasDbContext: !!dbContext
-    });
-
+    // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
     const response = await anthropic.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
-      max_tokens: 4096,
       temperature: 0.7,
     });
 
     // Ensure we have a text response
-    const messageContent = response.content[0];
-    if (messageContent.type !== 'text') {
+    const content = response.content[0];
+    if (content.type !== 'text') {
       return {
         content: "I apologize, but I can only process text responses at the moment.",
         suggestedActions: []
       };
     }
 
-    let finalResponse = messageContent.text;
+    let finalResponse = content.text;
     let suggestedActions: SuggestedAction[] = [];
 
     // Extract suggested actions
@@ -403,7 +501,7 @@ export async function processAIMessage(
       content: finalResponse.trim(),
       suggestedActions
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error processing AI message:", error);
     throw error;
   }
