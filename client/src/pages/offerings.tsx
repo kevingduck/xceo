@@ -81,8 +81,11 @@ const offeringFormSchema = z.object({
 const pricingTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
-  price: z.number().min(0, "Price must be positive"),
-  billingCycle: z.string().optional(),
+  price: z.object({
+    amount: z.number().min(0, "Price must be positive"),
+    currency: z.string().default("USD"),
+    billingCycle: z.string().optional(),
+  }),
   offeringId: z.number(),
   features: z.array(z.string()).default([]),
 });
@@ -183,7 +186,7 @@ export default function OfferingsPage() {
 
   const addPricingTier = useMutation({
     mutationFn: async (data: z.infer<typeof pricingTierSchema>) => {
-      console.log('Submitting pricing tier:', data); 
+      console.log('Submitting pricing tier:', data);
       const res = await fetch("/api/pricing-tiers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,7 +195,7 @@ export default function OfferingsPage() {
       });
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Error creating pricing tier:', errorText); 
+        console.error('Error creating pricing tier:', errorText);
         throw new Error(errorText);
       }
       return res.json();
@@ -274,14 +277,18 @@ export default function OfferingsPage() {
     defaultValues: {
       name: "",
       description: "",
-      price: 0,
+      price: {
+        amount: 0,
+        currency: "USD",
+        billingCycle: "",
+      },
       features: [],
     },
   });
 
   // Helper functions
   const handleEditOffering = (offering: any, e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     setEditingOffering(offering);
     setShowOfferingForm(true);
     offeringForm.reset({
@@ -294,7 +301,7 @@ export default function OfferingsPage() {
   };
 
   const handleDeleteOffering = (offering: any, e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     if (confirm("Are you sure you want to delete this offering?")) {
       deleteOffering.mutate(offering.id);
     }
@@ -571,7 +578,11 @@ export default function OfferingsPage() {
               pricingTierForm.reset({
                 name: "",
                 description: "",
-                price: 0,
+                price: {
+                  amount: 0,
+                  currency: "USD",
+                  billingCycle: "",
+                },
                 offeringId: selectedOffering.id,
                 features: [],
               });
@@ -611,8 +622,8 @@ export default function OfferingsPage() {
                       <div>
                         <CardTitle>{tier.name}</CardTitle>
                         <div className="mt-1 text-2xl font-bold">
-                          ${tier.price}
-                          {tier.billingCycle && <span className="text-sm text-muted-foreground">/{tier.billingCycle}</span>}
+                          ${tier.price.amount}
+                          {tier.price.billingCycle && <span className="text-sm text-muted-foreground">/{tier.price.billingCycle}</span>}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -626,7 +637,7 @@ export default function OfferingsPage() {
                               name: tier.name,
                               description: tier.description,
                               price: tier.price,
-                              billingCycle: tier.billingCycle,
+                              billingCycle: tier.price.billingCycle,
                               offeringId: tier.offeringId,
                               features: tier.features || [],
                             });
@@ -696,10 +707,15 @@ export default function OfferingsPage() {
               const formData = {
                 ...data,
                 offeringId: selectedOffering.id,
-                features: data.features || [], 
+                price: {
+                  amount: data.price.amount,
+                  currency: "USD",
+                  billingCycle: data.price.billingCycle || undefined,
+                },
+                features: data.features || [],
               };
 
-              console.log('Submitting form data:', formData); 
+              console.log('Submitting form data:', formData);
 
               if (editingTier) {
                 updatePricingTier.mutate({ id: editingTier.id, data: formData });
@@ -741,7 +757,7 @@ export default function OfferingsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={pricingTierForm.control}
-                    name="price"
+                    name="price.amount"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Price</FormLabel>
@@ -759,7 +775,7 @@ export default function OfferingsPage() {
                   />
                   <FormField
                     control={pricingTierForm.control}
-                    name="billingCycle"
+                    name="price.billingCycle"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Billing Cycle</FormLabel>
