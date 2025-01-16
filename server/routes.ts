@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, attachments } from "@db/schema";
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates } from "@db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
@@ -703,7 +703,7 @@ Culture & Values:
     }
   });
 
-  app.put("/api/team-members/:id", async (req, res) => {
+  app.patch("/api/team-members/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
@@ -738,6 +738,7 @@ Culture & Values:
       res.status(500).send("Failed to update team member");
     }
   });
+
 
   app.delete("/api/team-members/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
@@ -803,7 +804,7 @@ Culture & Values:
     }
   });
 
-  app.put("/api/positions/:id", async (req, res) => {
+  app.patch("/api/positions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
@@ -855,24 +856,6 @@ Culture & Values:
       if (!existingPosition) return res.status(404).send("Position not found");
       if (existingPosition.userId !== req.user.id) return res.status(403).send("Unauthorized");
 
-      // First check if there are any candidates for this position
-      const candidates = await db
-        .select()
-        .from(candidates)
-        .where(eq(candidates.positionId, positionId));
-
-      if (candidates.length > 0) {
-        return res.status(400).json({
-          message: "Cannot delete position with associated candidates. Please remove or reassign candidates first."
-        });
-      }
-
-      // Delete any attachments first
-      await db.delete(attachments)
-        .where(eq(attachments.entityId, positionId))
-        .where(eq(attachments.entityType, "position"));
-
-      // Then delete the position
       await db.delete(positions).where(eq(positions.id, positionId));
       res.json({ success: true });
     } catch (error) {
@@ -895,7 +878,9 @@ Culture & Values:
       console.error("Error fetching candidates:", error);
       res.status(500).send("Failed to fetch candidates");
     }
-  });app.post("/api/candidates", async (req, res) => {
+  });
+
+  app.post("/api/candidates", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
@@ -929,7 +914,7 @@ Culture & Values:
     }
   });
 
-  app.put("/api/candidates/:id", async (req, res) => {
+  app.patch("/api/candidates/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
@@ -981,12 +966,6 @@ Culture & Values:
       if (!existingCandidate) return res.status(404).send("Candidate not found");
       if (existingCandidate.userId !== req.user.id) return res.status(403).send("Unauthorized");
 
-      // Delete any attachments first
-      await db.delete(attachments)
-        .where(eq(attachments.entityId, candidateId))
-        .where(eq(attachments.entityType, "candidate"));
-
-      // Then delete the candidate
       await db.delete(candidates).where(eq(candidates.id, candidateId));
       res.json({ success: true });
     } catch (error) {
@@ -995,6 +974,297 @@ Culture & Values:
     }
   });
 
+  // Add these routes before the end of registerRoutes function
+  app.post("/api/settings/clear-data", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Delete all user data in order of dependencies
+      await Promise.all([
+        db.delete(tasks).where(eq(tasks.userId, req.user.id)),
+        db.delete(chatMessages).where(eq(chatMessages.userId, req.user.id)),
+        db.delete(analytics).where(eq(analytics.userId, req.user.id)),
+        db.delete(businessInfoHistory).where(eq(businessInfoHistory.userId, req.user.id)),
+        db.delete(businessInfo).where(eq(businessInfo.userId, req.user.id)),
+        db.delete(teamMembers).where(eq(teamMembers.userId, req.user.id)),
+        db.delete(positions).where(eq(positions.userId, req.user.id)),
+        db.delete(candidates).where(eq(candidates.userId, req.user.id))
+      ]);
+
+      // Reset user's business configuration
+      await db
+        .update(users)
+        .set({
+          businessName: null,
+          businessDescription: null,
+          businessObjectives: null
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.json({ message: "All data cleared successfully" });
+    } catch (error) {
+      console.error("Error clearing data:", error);
+      res.status(500).send("Failed to clear data");
+    }
+  });
+
+  app.get("/api/settings/export-data", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Fetch all user data
+      const [
+        userTasks,
+        userChats,
+        userAnalytics,
+        userBusinessInfo,
+        userBusinessInfoHistory,
+        userData,
+        userTeamMembers,
+        userPositions,
+        userCandidates
+      ] = await Promise.all([
+        db.query.tasks.findMany({
+          where: eq(tasks.userId, req.user.id)
+        }),
+        db.query.chatMessages.findMany({
+          where: eq(chatMessages.userId, req.user.id)
+        }),
+        db.query.analytics.findMany({
+          where: eq(analytics.userId, req.user.id)
+        }),
+        db.query.businessInfo.findMany({
+          where: eq(businessInfo.userId, req.user.id)
+        }),
+        db.query.businessInfoHistory.findMany({
+          where: eq(businessInfoHistory.userId, req.user.id)
+        }),
+        db.query.users.findFirst({
+          where: eq(users.id, req.user.id),
+          columns: {
+            id: true,
+            username: true,
+            businessName: true,
+            businessDescription: true,
+            businessObjectives: true,
+            createdAt: true
+          }
+        }),
+        db.query.teamMembers.findMany({
+          where: eq(teamMembers.userId, req.user.id)
+        }),
+        db.query.positions.findMany({
+          where: eq(positions.userId, req.user.id)
+        }),
+        db.query.candidates.findMany({
+          where: eq(candidates.userId, req.user.id)
+        })
+      ]);
+
+      const exportData = {
+        user: userData,
+        tasks: userTasks,
+        chats: userChats,
+        analytics: userAnalytics,
+        businessInfo: userBusinessInfo,
+        businessInfoHistory: userBusinessInfoHistory,
+        teamMembers: userTeamMembers,
+        positions: userPositions,
+        candidates: userCandidates,
+        exportDate: new Date().toISOString()
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename=ai-ceo-data.json');
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      res.status(500).send("Failed to export data");
+    }
+  });
+
+  app.patch("/api/admin/:table/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { table, id } = req.params;
+    const tableId = parseInt(id);
+    if (isNaN(tableId)) {
+      return res.status(400).json({ message: "Invalid ID format" });
+    }
+
+    try {
+      let result;
+      switch (table) {
+        case 'users':
+          [result] = await db
+            .update(users)
+            .set(req.body)
+            .where(eq(users.id, tableId))
+            .returning();
+          break;
+        case 'business_info':
+          [result] = await db
+            .update(businessInfo)
+            .set(req.body)
+            .where(eq(businessInfo.id, tableId))
+            .returning();
+          break;
+        case 'tasks':
+          [result] = await db
+            .update(tasks)
+            .set(req.body)
+            .where(eq(tasks.id, tableId))
+            .returning();
+          break;
+        case 'chat_messages':
+          [result] = await db
+            .update(chatMessages)
+            .set(req.body)
+            .where(eq(chatMessages.id, tableId))
+            .returning();
+          break;
+        case 'analytics':
+          [result] = await db
+            .update(analytics)
+            .set(req.body)
+            .where(eq(analytics.id, tableId))
+            .returning();
+          break;
+        case 'team_members':
+          [result] = await db
+            .update(teamMembers)
+            .set(req.body)
+            .where(eq(teamMembers.id, tableId))
+            .returning();
+          break;
+        case 'positions':
+          [result] = await db
+            .update(positions)
+            .set(req.body)
+            .where(eq(positions.id, tableId))
+            .returning();
+          break;
+        case 'candidates':
+          [result] = await db
+            .update(candidates)
+            .set(req.body)
+            .where(eq(candidates.id, tableId))
+            .returning();
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid table name" });
+      }
+
+      if (!result) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error(`Error updating ${table}:`, error);
+      res.status(500).json({ message: `Failed to update ${table}` });
+    }
+  });
+
+  app.delete("/api/admin/:table", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { table } = req.params;
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Invalid or empty IDs array" });
+    }
+
+    try {
+      let result;
+      switch (table) {
+        case 'users':
+          // For users, first delete all related data
+          await Promise.all([
+            db.delete(tasks).where(inArray(tasks.userId, ids)),
+            db.delete(chatMessages).where(inArray(chatMessages.userId, ids)),
+            db.delete(analytics).where(inArray(analytics.userId, ids)),
+            db.delete(businessInfoHistory).where(inArray(businessInfoHistory.userId, ids)),
+            db.delete(businessInfo).where(inArray(businessInfo.userId, ids)),
+            db.delete(teamMembers).where(inArray(teamMembers.userId, ids)),
+            db.delete(positions).where(inArray(positions.userId, ids)),
+            db.delete(candidates).where(inArray(candidates.userId, ids))
+          ]);
+          // Then delete the users
+          result = await db
+            .delete(users)
+            .where(inArray(users.id, ids))
+            .returning();
+          break;
+        case 'business_info':
+          // First delete history
+          await db
+            .delete(businessInfoHistory)
+            .where(inArray(businessInfoHistory.businessInfoId, ids));
+          // Then delete business info
+          result = await db
+            .delete(businessInfo)
+            .where(inArray(businessInfo.id, ids))
+            .returning();
+          break;
+        case 'tasks':
+          result = await db
+            .delete(tasks)
+            .where(inArray(tasks.id, ids))
+            .returning();
+          break;
+        case 'chat_messages':
+          result = await db
+            .delete(chatMessages)
+            .where(inArray(chatMessages.id, ids))
+            .returning();
+          break;
+        case 'analytics':
+          result = await db
+            .delete(analytics)
+            .where(inArray(analytics.id, ids))
+            .returning();
+          break;
+        case 'team_members':
+          result = await db
+            .delete(teamMembers)
+            .where(inArray(teamMembers.id, ids))
+            .returning();
+          break;
+        case 'positions':
+          result = await db
+            .delete(positions)
+            .where(inArray(positions.id, ids))
+            .returning();
+          break;
+        case 'candidates':
+          result = await db
+            .delete(candidates)
+            .where(inArray(candidates.id, ids))
+            .returning();
+          break;
+        default:
+          return res.status(400).json({ message: "Invalid table name" });
+      }
+
+      res.json({ message: "Items deleted successfully", deleted: result });
+    } catch (error) {
+      console.error(`Error deleting from ${table}:`, error);
+      res.status(500).json({ message: `Failed to delete from ${table}` });
+    }
+  });
+
   const httpServer = createServer(app);
+  setupWebSocket(httpServer);
+
   return httpServer;
 }
