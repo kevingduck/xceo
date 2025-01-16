@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages } from '@db/schema';
+import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages, offerings, offeringFeatures, roadmapItems } from '@db/schema';
 import { eq, desc, and, gt } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
@@ -175,6 +175,15 @@ async function getBusinessContext(userId: number) {
       where: eq(candidates.userId, userId)
     });
 
+    // Get offerings data
+    const offeringsData = await db.query.offerings.findMany({
+      where: eq(offerings.userId, userId),
+      with: {
+        features: true,
+        roadmapItems: true
+      }
+    });
+
     // Format context sections
     let contextString = "Current Business Context:\n\n";
 
@@ -186,6 +195,43 @@ async function getBusinessContext(userId: number) {
           contextString += `${info.section}:\n`;
           for (const [key, field] of Object.entries(info.fields)) {
             contextString += `- ${key}: ${field.value}\n`;
+          }
+        }
+      }
+    }
+
+    // Add offerings information
+    if (offeringsData.length > 0) {
+      contextString += "\nOfferings:\n";
+      for (const offering of offeringsData) {
+        contextString += `\n${offering.name} (${offering.type}):\n`;
+        contextString += `- Description: ${offering.description}\n`;
+        contextString += `- Status: ${offering.status}\n`;
+        if (offering.price) {
+          contextString += `- Price: ${offering.price.amount} ${offering.price.currency}`;
+          if (offering.price.billingCycle) {
+            contextString += ` per ${offering.price.billingCycle}`;
+          }
+          contextString += '\n';
+        }
+
+        // Add features
+        if (offering.features?.length > 0) {
+          contextString += "  Features:\n";
+          for (const feature of offering.features) {
+            contextString += `  - ${feature.name}: ${feature.description} (${feature.status})\n`;
+          }
+        }
+
+        // Add roadmap items
+        if (offering.roadmapItems?.length > 0) {
+          contextString += "  Roadmap:\n";
+          for (const item of offering.roadmapItems) {
+            contextString += `  - ${item.title} (${item.status}, Priority: ${item.priority})\n`;
+            contextString += `    ${item.description}\n`;
+            if (item.plannedDate) {
+              contextString += `    Planned: ${new Date(item.plannedDate).toLocaleDateString()}\n`;
+            }
           }
         }
       }
@@ -272,21 +318,21 @@ async function summarizeAndStoreConversation(userId: number, firstMessageId: num
       messages: [{
         role: "user",
         content: `Please analyze and summarize this conversation comprehensively, focusing on key decisions, insights, and action items. Extract the main topics discussed, and provide contextual understanding that will be valuable for future interactions:
-
-${conversationText}
-
-Format your response as JSON:
-{
-  "summary": "Detailed summary of the conversation, including contextual insights",
-  "keyTopics": ["Topic 1", "Topic 2", ...],
-  "contextualData": {
-    "decisions": ["Decision 1", "Decision 2", ...],
-    "actionItems": ["Action 1", "Action 2", ...],
-    "insights": ["Insight 1", "Insight 2", ...],
-    "relationships": ["Connection 1", "Connection 2", ...],
-    "contextualBackgrounds": ["Context 1", "Context 2", ...]
-  }
-}`
+        
+        ${conversationText}
+        
+        Format your response as JSON:
+        {
+          "summary": "Detailed summary of the conversation, including contextual insights",
+          "keyTopics": ["Topic 1", "Topic 2", ...],
+          "contextualData": {
+            "decisions": ["Decision 1", "Decision 2", ...],
+            "actionItems": ["Action 1", "Action 2", ...],
+            "insights": ["Insight 1", "Insight 2", ...],
+            "relationships": ["Connection 1", "Connection 2", ...],
+            "contextualBackgrounds": ["Context 1", "Context 2", ...]
+          }
+        }`
       }],
       temperature: 0.7,
     });
@@ -341,7 +387,7 @@ export async function processAIMessage(
     // Get latest conversation summary for context
     const latestSummary = await getLatestConversationSummary(userId);
 
-    let systemPrompt = businessContext ? 
+    let systemPrompt = businessContext ?
       `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
 
       Business Context:
