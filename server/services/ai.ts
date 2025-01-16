@@ -29,18 +29,15 @@ type TaskFunctionCall = {
   };
 };
 
-export const businessSections: BusinessSection[] = [
-  {
-    section: "Business Overview",
-    fields: {
-      company_name: {
-        type: "text",
-        label: "Company Name",
-        description: "Legal name of your business"
-      }
-    }
-  }
-];
+type UpdateBusinessFieldCall = {
+  name: "update_business_field";
+  args: {
+    section: string;
+    field: string;
+    value: string | number | string[];
+    type: "text" | "number" | "currency" | "percentage" | "date" | "list";
+  };
+};
 
 async function executeTaskFunction(userId: number, functionCall: TaskFunctionCall) {
   try {
@@ -60,6 +57,66 @@ async function executeTaskFunction(userId: number, functionCall: TaskFunctionCal
   }
 }
 
+async function executeBusinessFieldUpdate(userId: number, functionCall: UpdateBusinessFieldCall) {
+  try {
+    const { args } = functionCall;
+
+    // Find the business info section
+    const [sectionInfo] = await db
+      .select()
+      .from(businessInfo)
+      .where(
+        and(
+          eq(businessInfo.userId, userId),
+          eq(businessInfo.section, args.section)
+        )
+      )
+      .orderBy(desc(businessInfo.updatedAt))
+      .limit(1);
+
+    if (!sectionInfo) {
+      throw new Error(`Section ${args.section} not found`);
+    }
+
+    // Save current state to history
+    await db.insert(businessInfoHistory).values({
+      businessInfoId: sectionInfo.id,
+      userId: userId,
+      content: sectionInfo.content,
+      fields: sectionInfo.fields || {},
+      updatedBy: 'ai',
+      reason: `AI update of field: ${args.field}`,
+      metadata: { source: 'ai-update' }
+    });
+
+    // Update the field
+    const updatedFields = {
+      ...(sectionInfo.fields || {}),
+      [args.field]: {
+        value: args.value,
+        type: args.type,
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'ai' as const
+      }
+    };
+
+    // Update the business info
+    const [updatedInfo] = await db
+      .update(businessInfo)
+      .set({
+        fields: updatedFields,
+        updatedAt: new Date()
+      })
+      .where(eq(businessInfo.id, sectionInfo.id))
+      .returning();
+
+    return updatedInfo;
+  } catch (error) {
+    console.error("Error executing business field update:", error);
+    throw new Error("Failed to update business field");
+  }
+}
+
 export async function processAIMessage(
   userId: number,
   content: string,
@@ -71,10 +128,15 @@ export async function processAIMessage(
   }
 ) {
   try {
-    // Fetch user's tasks
+    // Fetch user's tasks and business info
     const userTasks = await db.query.tasks.findMany({
       where: eq(tasks.userId, userId),
       orderBy: [desc(tasks.updatedAt)]
+    });
+
+    const businessSections = await db.query.businessInfo.findMany({
+      where: eq(businessInfo.userId, userId),
+      orderBy: [desc(businessInfo.updatedAt)]
     });
 
     // Format tasks for AI context
@@ -86,7 +148,16 @@ export async function processAIMessage(
       updatedAt: task.updatedAt.toISOString()
     }));
 
-    // Create context message for tasks
+    // Format business info for context
+    const businessInfoContext = businessSections.reduce((acc, section) => {
+      acc[section.section] = {
+        fields: section.fields || {},
+        content: section.content
+      };
+      return acc;
+    }, {} as Record<string, any>);
+
+    // Create context message
     const contextMessage = `You are an AI CEO assistant. ${
       businessContext 
         ? `You are helping manage ${businessContext.name}. The business description is: ${businessContext.description}. Key objectives: ${businessContext.objectives.join(", ")}.`
@@ -96,16 +167,25 @@ export async function processAIMessage(
 Current tasks (${tasksContext.length}):
 ${tasksContext.map(task => `- ${task.title} (${task.status})`).join("\n")}
 
+Business Information:
+${Object.entries(businessInfoContext).map(([section, data]) => `
+${section}:
+${Object.entries(data.fields).map(([field, value]: [string, any]) => 
+  `- ${field}: ${value.value} (${value.type})`
+).join("\n")}`).join("\n")}
+
 You can:
-1. Discuss and provide insights about tasks
+1. Discuss and provide insights about tasks and business information
 2. Suggest task status updates
 3. Recommend new tasks based on business objectives
-4. Analyze task progress and priorities
+4. Update business information fields directly
+5. Analyze business metrics and provide recommendations
 
-When the user suggests or implies a new task should be created, you can create it directly using the create_task function.
-The create_task function accepts: title (required), description (optional), and status (optional, defaults to "todo").
+When appropriate, you can:
+- Create tasks using the create_task function
+- Update business fields using the update_business_field function
 
-Respond naturally while keeping this context in mind. If a new task should be created based on the conversation, use the create_task function.`;
+Respond naturally while keeping this context in mind.`;
 
     // Call Anthropic API
     const response = await anthropic.messages.create({
@@ -119,7 +199,7 @@ Respond naturally while keeping this context in mind. If a new task should be cr
         })) || []),
         { role: "user", content }
       ],
-      system: "You are a business management AI assistant that can help create and manage tasks. When a task needs to be created, use the create_task function.",
+      system: `You are a business management AI assistant that can help create and manage tasks, and update business information. When updating business fields, ensure the values match the field type (text, number, currency, percentage, date, or list). Always use the appropriate function to make changes.`,
       tools: [
         {
           name: "create_task",
@@ -143,6 +223,37 @@ Respond naturally while keeping this context in mind. If a new task should be cr
             },
             required: ["title"]
           }
+        },
+        {
+          name: "update_business_field",
+          description: "Update a specific field in a business section",
+          input_schema: {
+            type: "object",
+            properties: {
+              section: {
+                type: "string",
+                description: "The section name (e.g., 'Business Overview', 'Financial Overview')"
+              },
+              field: {
+                type: "string",
+                description: "The field name to update"
+              },
+              value: {
+                oneOf: [
+                  { type: "string" },
+                  { type: "number" },
+                  { type: "array", items: { type: "string" } }
+                ],
+                description: "The new value for the field"
+              },
+              type: {
+                type: "string",
+                enum: ["text", "number", "currency", "percentage", "date", "list"],
+                description: "The type of the field"
+              }
+            },
+            required: ["section", "field", "value", "type"]
+          }
         }
       ]
     });
@@ -155,6 +266,8 @@ Respond naturally while keeping this context in mind. If a new task should be cr
 
     // Handle tool calls if present
     let createdTask = null;
+    let updatedField = null;
+
     for (const content of response.content) {
       if ('tool_calls' in content) {
         const toolCalls = content.tool_calls || [];
@@ -164,7 +277,14 @@ Respond naturally while keeping this context in mind. If a new task should be cr
               const args = JSON.parse(toolCall.arguments);
               createdTask = await executeTaskFunction(userId, { name: "create_task", args });
             } catch (error) {
-              console.error("Error processing tool call:", error);
+              console.error("Error processing task tool call:", error);
+            }
+          } else if (toolCall.name === 'update_business_field') {
+            try {
+              const args = JSON.parse(toolCall.arguments);
+              updatedField = await executeBusinessFieldUpdate(userId, { name: "update_business_field", args });
+            } catch (error) {
+              console.error("Error processing business field update tool call:", error);
             }
           }
         }
@@ -172,12 +292,18 @@ Respond naturally while keeping this context in mind. If a new task should be cr
     }
 
     // Extract suggested actions based on AI response
-    const suggestedActions = extractSuggestedActions(aiContent, tasksContext);
+    const suggestedActions = extractSuggestedActions(aiContent, tasksContext, businessInfoContext);
+
+    let responseContent = aiContent;
+    if (createdTask) {
+      responseContent += `\n\nI've created a new task: "${createdTask.title}"`;
+    }
+    if (updatedField) {
+      responseContent += `\n\nI've updated the ${updatedField.section} information.`;
+    }
 
     return {
-      content: createdTask 
-        ? `${aiContent}\n\nI've created a new task: "${createdTask.title}"`
-        : aiContent,
+      content: responseContent,
       suggestedActions
     };
   } catch (error) {
@@ -186,7 +312,11 @@ Respond naturally while keeping this context in mind. If a new task should be cr
   }
 }
 
-function extractSuggestedActions(content: string, tasks: any[]) {
+function extractSuggestedActions(
+  content: string,
+  tasks: any[],
+  businessInfo: Record<string, any>
+) {
   const actions: Array<{
     label: string;
     type: 'field_update' | 'task_creation' | 'analysis';
@@ -213,12 +343,22 @@ function extractSuggestedActions(content: string, tasks: any[]) {
     });
   }
 
+  // Extract business field update suggestions
+  const fieldMatches = content.match(/suggest(?:ing)? (?:updating|changing|setting) (?:the )?([a-zA-Z_]+)(?: to | as )([^.,]+)/gi);
+  if (fieldMatches) {
+    actions.push({
+      label: "Update Business Information",
+      type: "field_update",
+      value: "Would you like me to update the business information as suggested?"
+    });
+  }
+
   // Extract analysis suggestions
   if (content.includes("analyze") || content.includes("review") || content.includes("examine")) {
     actions.push({
-      label: "Analyze Tasks",
+      label: "Analyze Business Data",
       type: "analysis",
-      value: "Would you like a detailed analysis of your current tasks?"
+      value: "Would you like a detailed analysis of your business data?"
     });
   }
 

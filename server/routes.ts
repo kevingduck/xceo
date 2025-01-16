@@ -406,7 +406,7 @@ Culture & Values:
       return res.status(401).send("Not authenticated");
     }
 
-    // Define business section templates
+    // Define comprehensive business section templates
     const businessSections = [
       {
         section: "Business Overview",
@@ -427,6 +427,16 @@ Culture & Values:
             description: "Date when the company was founded"
           },
           {
+            name: "company_stage",
+            type: "text",
+            description: "Current stage of company (e.g., Startup, Growth, Mature)"
+          },
+          {
+            name: "business_model",
+            type: "text",
+            description: "Core business model (e.g., B2B, B2C, Marketplace)"
+          },
+          {
             name: "employee_count",
             type: "number",
             description: "Current number of employees"
@@ -435,6 +445,76 @@ Culture & Values:
             name: "annual_revenue",
             type: "currency",
             description: "Annual revenue in USD"
+          },
+          {
+            name: "funding_status",
+            type: "text",
+            description: "Current funding status and round"
+          },
+          {
+            name: "key_products",
+            type: "list",
+            description: "List of key products or services"
+          },
+          {
+            name: "target_markets",
+            type: "list",
+            description: "Target market segments"
+          },
+          {
+            name: "growth_rate",
+            type: "percentage",
+            description: "Year-over-year growth rate"
+          }
+        ]
+      },
+      {
+        section: "Market Intelligence",
+        fields: [
+          {
+            name: "target_market_size",
+            type: "currency",
+            description: "Total addressable market size"
+          },
+          {
+            name: "market_share",
+            type: "percentage",
+            description: "Current market share"
+          },
+          {
+            name: "competitors",
+            type: "list",
+            description: "List of main competitors"
+          },
+          {
+            name: "competitive_advantages",
+            type: "list",
+            description: "Key competitive advantages"
+          },
+          {
+            name: "market_trends",
+            type: "list",
+            description: "Current market trends affecting the business"
+          },
+          {
+            name: "customer_segments",
+            type: "list",
+            description: "Detailed customer segment analysis"
+          },
+          {
+            name: "market_growth_rate",
+            type: "percentage",
+            description: "Market growth rate"
+          },
+          {
+            name: "regulatory_factors",
+            type: "list",
+            description: "Key regulatory factors affecting the market"
+          },
+          {
+            name: "market_challenges",
+            type: "list",
+            description: "Major market challenges and risks"
           }
         ]
       },
@@ -447,34 +527,49 @@ Culture & Values:
             description: "Current annual revenue"
           },
           {
-            name: "expenses",
-            type: "currency",
-            description: "Current annual expenses"
-          },
-          {
-            name: "profit_margin",
+            name: "revenue_growth",
             type: "percentage",
-            description: "Current profit margin"
-          }
-        ]
-      },
-      {
-        section: "Market Intelligence",
-        fields: [
-          {
-            name: "target_market",
-            type: "text",
-            description: "Description of your target market"
+            description: "Year-over-year revenue growth"
           },
           {
-            name: "market_size",
+            name: "gross_margin",
+            type: "percentage",
+            description: "Gross profit margin"
+          },
+          {
+            name: "operating_margin",
+            type: "percentage",
+            description: "Operating profit margin"
+          },
+          {
+            name: "burn_rate",
             type: "currency",
-            description: "Total addressable market size"
+            description: "Monthly burn rate"
           },
           {
-            name: "competitors",
+            name: "runway",
+            type: "number",
+            description: "Months of runway remaining"
+          },
+          {
+            name: "customer_acquisition_cost",
+            type: "currency",
+            description: "Customer acquisition cost (CAC)"
+          },
+          {
+            name: "lifetime_value",
+            type: "currency",
+            description: "Customer lifetime value (LTV)"
+          },
+          {
+            name: "operating_expenses",
+            type: "currency",
+            description: "Monthly operating expenses"
+          },
+          {
+            name: "funding_rounds",
             type: "list",
-            description: "List of main competitors"
+            description: "Previous funding rounds and amounts"
           }
         ]
       },
@@ -484,17 +579,47 @@ Culture & Values:
           {
             name: "locations",
             type: "list",
-            description: "List of operation locations"
+            description: "Operating locations"
           },
           {
             name: "tech_stack",
             type: "list",
-            description: "List of key technologies used"
+            description: "Key technologies used"
+          },
+          {
+            name: "operational_metrics",
+            type: "list",
+            description: "Key operational metrics"
           },
           {
             name: "efficiency_rate",
             type: "percentage",
-            description: "Current operational efficiency"
+            description: "Operational efficiency rate"
+          },
+          {
+            name: "supply_chain",
+            type: "list",
+            description: "Key supply chain components"
+          },
+          {
+            name: "quality_metrics",
+            type: "list",
+            description: "Quality assurance metrics"
+          },
+          {
+            name: "infrastructure",
+            type: "list",
+            description: "Key infrastructure components"
+          },
+          {
+            name: "certifications",
+            type: "list",
+            description: "Business certifications and compliance"
+          },
+          {
+            name: "vendor_relationships",
+            type: "list",
+            description: "Key vendor relationships"
           }
         ]
       },
@@ -512,9 +637,39 @@ Culture & Values:
             description: "List of departments"
           },
           {
-            name: "hiring_target",
+            name: "key_positions",
+            type: "list",
+            description: "Key positions and roles"
+          },
+          {
+            name: "hiring_plan",
             type: "number",
-            description: "Hiring target for current period"
+            description: "Planned new hires for current period"
+          },
+          {
+            name: "retention_rate",
+            type: "percentage",
+            description: "Employee retention rate"
+          },
+          {
+            name: "training_programs",
+            type: "list",
+            description: "Employee training programs"
+          },
+          {
+            name: "benefits",
+            type: "list",
+            description: "Employee benefits and perks"
+          },
+          {
+            name: "culture_initiatives",
+            type: "list",
+            description: "Culture building initiatives"
+          },
+          {
+            name: "performance_metrics",
+            type: "list",
+            description: "Key performance metrics"
           }
         ]
       }
