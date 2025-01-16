@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages, offerings, offeringFeatures, roadmapItems } from '@db/schema';
+import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages, offerings, offeringFeatures, roadmapItems, pricingTiers, pricingFeatures } from '@db/schema';
 import { eq, desc, and, gt } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
@@ -175,13 +175,18 @@ async function getBusinessContext(userId: number) {
       where: eq(candidates.userId, userId)
     });
 
-    // Get offerings data
+    // Get offerings data with pricing tiers
     const offeringsData = await db.query.offerings.findMany({
       where: eq(offerings.userId, userId),
       with: {
         features: true,
-        roadmapItems: true
+        roadmapItems: true,
       }
+    });
+
+    // Get pricing tiers data
+    const pricingTiersData = await db.query.pricingTiers.findMany({
+      where: eq(pricingTiers.userId, userId)
     });
 
     // Format context sections
@@ -200,19 +205,40 @@ async function getBusinessContext(userId: number) {
       }
     }
 
-    // Add offerings information
+    // Add offerings information with pricing tiers
     if (offeringsData.length > 0) {
-      contextString += "\nOfferings:\n";
+      contextString += "\nOfferings and Pricing:\n";
       for (const offering of offeringsData) {
         contextString += `\n${offering.name} (${offering.type}):\n`;
         contextString += `- Description: ${offering.description}\n`;
         contextString += `- Status: ${offering.status}\n`;
+
+        // Add base price if exists
         if (offering.price) {
-          contextString += `- Price: ${offering.price.amount} ${offering.price.currency}`;
+          contextString += `- Base Price: ${offering.price.amount} ${offering.price.currency}`;
           if (offering.price.billingCycle) {
             contextString += ` per ${offering.price.billingCycle}`;
           }
           contextString += '\n';
+        }
+
+        // Add pricing tiers for this offering
+        const offeringTiers = pricingTiersData.filter(tier => tier.offeringId === offering.id);
+        if (offeringTiers.length > 0) {
+          contextString += "  Pricing Tiers:\n";
+          for (const tier of offeringTiers) {
+            contextString += `  - ${tier.name}: ${tier.price.amount} ${tier.price.currency}`;
+            if (tier.price.billingCycle) {
+              contextString += `/${tier.price.billingCycle}`;
+            }
+            contextString += `\n    ${tier.description}\n`;
+            if (tier.features && tier.features.length > 0) {
+              contextString += "    Features:\n";
+              for (const feature of tier.features) {
+                contextString += `    • ${feature}\n`;
+              }
+            }
+          }
         }
 
         // Add features
@@ -389,20 +415,20 @@ export async function processAIMessage(
 
     let systemPrompt = businessContext ?
       `You are an AI CEO assistant engaged in a strategic conversation about ${businessContext.name}. 
-
+      
       Business Context:
       Description: ${businessContext.description}
       Key Objectives: ${businessContext.objectives.join(", ")}
-
+      
       Current Database Information:
       ${dbContext}
-
+      
       ${latestSummary ? `Previous Conversation Context:
       ${latestSummary.summary}
       Key Topics: ${latestSummary.keyTopics?.join(", ") || "None"}
       Contextual Insights: ${JSON.stringify(latestSummary.contextualData, null, 2)}
       ` : ""}
-
+      
       Your role is to be a thoughtful, strategic advisor who:
       1. Engages in natural, flowing conversation while maintaining deep context awareness
       2. Asks clarifying questions when needed to better understand complex situations
@@ -412,7 +438,7 @@ export async function processAIMessage(
       6. References and utilizes all available context, including historical conversations
       7. Maintains long-term memory across multiple conversations through summaries
       8. Identifies patterns and connections between different aspects of the business
-
+      
       When updating business fields, use this exact format:
       <field_update>
       {
@@ -425,7 +451,7 @@ export async function processAIMessage(
         }
       }
       </field_update>
-
+      
       When creating tasks, use this exact format:
       <task>
       {
@@ -434,7 +460,7 @@ export async function processAIMessage(
         "status": "todo"
       }
       </task>
-
+      
       Always provide 2-3 suggested next actions after your response in this format:
       <suggested_actions>
       [
