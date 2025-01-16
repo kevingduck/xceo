@@ -34,7 +34,6 @@ interface Section {
   description: string;
 }
 
-// Map client-side section IDs to server-side section names
 const sections: Section[] = [
   {
     id: "overview",
@@ -64,14 +63,22 @@ const sections: Section[] = [
 ];
 
 interface BusinessField {
-  name: string;
+  value: string | number | string[] | Date;
   type: 'text' | 'number' | 'currency' | 'percentage' | 'date' | 'list';
+  updatedAt: string;
+  updatedBy: 'user' | 'ai';
+  aiSuggestion?: string;
+}
+
+interface TemplateField {
+  name: string;
+  type: BusinessField['type'];
   description: string;
 }
 
 interface BusinessTemplate {
-  name: string;
-  fields: BusinessField[];
+  section: string;
+  fields: TemplateField[];
 }
 
 function formatFieldValue(value: any, type: string) {
@@ -94,17 +101,14 @@ function formatFieldValue(value: any, type: string) {
   }
 }
 
-function FieldEditor({
-  field,
-  value,
-  onSave,
-  onCancel
-}: {
-  field: BusinessField;
+interface FieldEditorProps {
+  field: TemplateField;
   value: any;
   onSave: (value: any) => void;
   onCancel: () => void;
-}) {
+}
+
+function FieldEditor({ field, value, onSave, onCancel }: FieldEditorProps) {
   const [currentValue, setCurrentValue] = useState(() => {
     if (field.type === 'list' && Array.isArray(value)) {
       return value.join('\n');
@@ -291,7 +295,7 @@ export default function BusinessPage() {
       fields
     }: {
       id: number;
-      fields: Record<string, any>;
+      fields: Record<string, Pick<BusinessField, 'value' | 'type'>>;
     }) => {
       const response = await fetch(`/api/business-info/${id}/fields`, {
         method: "PATCH",
@@ -330,8 +334,8 @@ export default function BusinessPage() {
 
   // Initialize sections once
   useEffect(() => {
-    if (!isBusinessLoading && 
-        !initializationAttempted.current && 
+    if (!isBusinessLoading &&
+        !initializationAttempted.current &&
         !initializationCompleted.current) {
       console.log("Attempting to initialize business sections");
       initializationAttempted.current = true;
@@ -339,8 +343,19 @@ export default function BusinessPage() {
     }
   }, [isBusinessLoading]);
 
+  // Find business info for current section
+  const currentSection = sections.find(s => s.id === activeSection);
+  const currentSectionData = businessInfo.find(info =>
+    info.section === currentSection?.title
+  );
+
+  // Get template for current section
+  const currentTemplate = templates.find(t =>
+    t.section === currentSection?.title
+  );
+
   // Handle field save
-  const handleFieldSave = async (field: BusinessField, value: any) => {
+  const handleFieldSave = async (field: TemplateField, value: any) => {
     if (!currentSection?.title) {
       toast({
         title: "Error",
@@ -378,17 +393,6 @@ export default function BusinessPage() {
       });
     }
   };
-
-  // Find business info for current section
-  const currentSection = sections.find(s => s.id === activeSection);
-  const currentSectionData = businessInfo.find(info =>
-    info.section === currentSection?.title
-  );
-
-  // Get template for current section
-  const currentTemplate = templates.find(t =>
-    t.name === currentSection?.title
-  );
 
   if (isBusinessLoading || isTemplateLoading) {
     return (
@@ -481,7 +485,7 @@ export default function BusinessPage() {
                                 <span className="text-sm">Updating...</span>
                               </div>
                             ) : currentSectionData?.fields?.[field.name] ? (
-                              <p className="text-sm">
+                              <p className="text-sm whitespace-pre-wrap">
                                 {formatFieldValue(
                                   currentSectionData.fields[field.name].value,
                                   field.type
@@ -496,6 +500,13 @@ export default function BusinessPage() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Show raw content if no template fields are available */}
+                {(!currentTemplate?.fields || currentTemplate.fields.length === 0) && currentSectionData?.content && (
+                  <div className="prose prose-sm max-w-none">
+                    <pre className="whitespace-pre-wrap">{currentSectionData.content}</pre>
                   </div>
                 )}
               </CardContent>
@@ -530,7 +541,7 @@ export default function BusinessPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="prose prose-sm max-w-none">
-                    {entry.content}
+                    <pre className="whitespace-pre-wrap">{entry.content}</pre>
                   </CardContent>
                 </Card>
               ))

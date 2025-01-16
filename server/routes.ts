@@ -2,10 +2,27 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, offerings, offeringFeatures, roadmapItems, offeringSchema, featureSchema, roadmapItemSchema, pricingTiers, pricingFeatures, packages, packageOfferings, pricingTierSchema, pricingFeatureSchema, packageSchema, packageOfferingSchema, taskSchema, updateTaskSchema } from "@db/schema";
+import {
+  tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
+  teamMembers, positions, candidates
+} from "@db/schema";
 import { eq, inArray, desc, and } from "drizzle-orm";
 import { z } from "zod";
-import { processAIMessage, type BusinessSection, businessSections } from "./services/ai";
+import { processAIMessage } from "./services/ai";
+
+// Schema definitions
+const fieldSchema = z.object({
+  value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
+  type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list']),
+});
+
+const fieldUpdateSchema = z.record(fieldSchema);
+
+const configureCEOSchema = z.object({
+  businessName: z.string().min(1, "Business name is required"),
+  businessDescription: z.string().min(1, "Business description is required"),
+  objectives: z.array(z.string()).min(1, "At least one objective is required"),
+});
 
 export function registerRoutes(app: Express): Server {
   // Tasks API
@@ -383,36 +400,156 @@ Culture & Values:
     }
   });
 
-  // Get field templates
+  // Add business info templates endpoint
   app.get("/api/business-info/templates", (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
+
+    // Define business section templates
+    const businessSections = [
+      {
+        section: "Business Overview",
+        fields: [
+          {
+            name: "company_name",
+            type: "text",
+            description: "Legal name of your company"
+          },
+          {
+            name: "industry",
+            type: "text",
+            description: "Primary industry of operation"
+          },
+          {
+            name: "founded_date",
+            type: "date",
+            description: "Date when the company was founded"
+          },
+          {
+            name: "employee_count",
+            type: "number",
+            description: "Current number of employees"
+          },
+          {
+            name: "annual_revenue",
+            type: "currency",
+            description: "Annual revenue in USD"
+          }
+        ]
+      },
+      {
+        section: "Financial Overview",
+        fields: [
+          {
+            name: "current_revenue",
+            type: "currency",
+            description: "Current annual revenue"
+          },
+          {
+            name: "expenses",
+            type: "currency",
+            description: "Current annual expenses"
+          },
+          {
+            name: "profit_margin",
+            type: "percentage",
+            description: "Current profit margin"
+          }
+        ]
+      },
+      {
+        section: "Market Intelligence",
+        fields: [
+          {
+            name: "target_market",
+            type: "text",
+            description: "Description of your target market"
+          },
+          {
+            name: "market_size",
+            type: "currency",
+            description: "Total addressable market size"
+          },
+          {
+            name: "competitors",
+            type: "list",
+            description: "List of main competitors"
+          }
+        ]
+      },
+      {
+        section: "Operations",
+        fields: [
+          {
+            name: "locations",
+            type: "list",
+            description: "List of operation locations"
+          },
+          {
+            name: "tech_stack",
+            type: "list",
+            description: "List of key technologies used"
+          },
+          {
+            name: "efficiency_rate",
+            type: "percentage",
+            description: "Current operational efficiency"
+          }
+        ]
+      },
+      {
+        section: "Human Capital",
+        fields: [
+          {
+            name: "team_size",
+            type: "number",
+            description: "Current team size"
+          },
+          {
+            name: "departments",
+            type: "list",
+            description: "List of departments"
+          },
+          {
+            name: "hiring_target",
+            type: "number",
+            description: "Hiring target for current period"
+          }
+        ]
+      }
+    ];
+
     res.json(businessSections);
   });
 
-  // Update specific fields
+  // Update specific fields with proper validation
   app.patch("/api/business-info/:id/fields", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
     }
+
     try {
       const infoId = parseInt(req.params.id);
       if (isNaN(infoId)) {
         return res.status(400).send("Invalid business info ID");
       }
+
       // Get existing business info
       const [existingInfo] = await db
         .select()
         .from(businessInfo)
         .where(eq(businessInfo.id, infoId))
         .limit(1);
+
       if (!existingInfo) {
         return res.status(404).send("Business info not found");
       }
+
       if (existingInfo.userId !== req.user.id) {
         return res.status(403).send("Unauthorized");
       }
+
       // Validate field updates
       const result = fieldUpdateSchema.safeParse(req.body);
       if (!result.success) {
@@ -420,6 +557,7 @@ Culture & Values:
           "Invalid fields: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
+
       // Save to history first
       await db.insert(businessInfoHistory).values({
         businessInfoId: infoId,
@@ -430,6 +568,7 @@ Culture & Values:
         reason: 'Manual field update',
         metadata: { source: 'field-update' }
       });
+
       // Update only the specified fields
       const updatedFields = {
         ...(existingInfo.fields || {}),
@@ -443,6 +582,7 @@ Culture & Values:
           }
         }), {})
       };
+
       // Update the business info
       const [updatedInfo] = await db
         .update(businessInfo)
@@ -452,9 +592,11 @@ Culture & Values:
         })
         .where(eq(businessInfo.id, infoId))
         .returning();
+
       if (!updatedInfo) {
         throw new Error('Failed to update business info fields');
       }
+
       res.json(updatedInfo);
     } catch (error) {
       console.error("Error updating business info fields:", error);
@@ -1703,8 +1845,7 @@ Culture & Values:
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
-      const tiers = await db.query.pricingTiers.findMany({
-        where: eq(pricingTiers.userId, req.user.id),
+      const tiers = await db.query.pricingTiers.findMany({        where: eq(pricingTiers.userId, req.user.id),
         with: {
           features: true
         }
