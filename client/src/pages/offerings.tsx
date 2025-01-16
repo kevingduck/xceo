@@ -35,11 +35,11 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -55,29 +55,10 @@ import {
   ChevronUp,
   Clock,
   Tag,
+  Check,
 } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Check } from "lucide-react";
 
-
-// Form schemas based on the backend types
-const offeringFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().min(1, "Description is required"),
-  type: z.enum(["product", "service"]),
-  status: z.enum(["active", "discontinued", "planned"]).default("active"),
-  price: z.object({
-    amount: z.number().min(0, "Price must be positive"),
-    currency: z.string().default("USD"),
-    billingCycle: z.string().optional(),
-  }).optional(),
-});
-
+// Form schemas
 const pricingTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
@@ -88,6 +69,18 @@ const pricingTierSchema = z.object({
   }),
   offeringId: z.number(),
   features: z.array(z.string()).default([]),
+});
+
+const offeringFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  type: z.enum(["product", "service"]),
+  status: z.enum(["active", "discontinued", "planned"]).default("active"),
+  price: z.object({
+    amount: z.number().min(0, "Price must be positive"),
+    currency: z.string().default("USD"),
+    billingCycle: z.string().optional(),
+  }).optional(),
 });
 
 export default function OfferingsPage() {
@@ -320,14 +313,17 @@ export default function OfferingsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Offerings</h1>
-        <Button onClick={() => {
-          setEditingOffering(null);
-          setShowOfferingForm(true);
-          offeringForm.reset();
-        }}>
+    <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Offerings</h1>
+        <Button 
+          onClick={() => {
+            setEditingOffering(null);
+            setShowOfferingForm(true);
+            offeringForm.reset();
+          }}
+          className="w-full sm:w-auto"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Offering
         </Button>
@@ -336,9 +332,9 @@ export default function OfferingsPage() {
       {/* Offerings Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoadingOfferings ? (
-          <p>Loading offerings...</p>
+          <p className="col-span-full text-center py-4">Loading offerings...</p>
         ) : offerings.length === 0 ? (
-          <p>No offerings yet. Add your first offering to get started.</p>
+          <p className="col-span-full text-center py-4">No offerings yet. Add your first offering to get started.</p>
         ) : (
           offerings.map((offering: any) => (
             <Card
@@ -350,35 +346,37 @@ export default function OfferingsPage() {
               }`}
               onClick={() => setSelectedOffering(offering)}
             >
-              <CardHeader>
+              <CardHeader className="space-y-2">
                 <CardTitle className="flex items-center justify-between">
-                  <span className="truncate">{offering.name}</span>
-                  <div className="flex gap-2">
+                  <span className="truncate text-base sm:text-lg">{offering.name}</span>
+                  <div className="flex gap-1 sm:gap-2">
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
+                      className="h-8 w-8"
                       onClick={(e) => handleEditOffering(offering, e)}
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
+                      className="h-8 w-8"
                       onClick={(e) => handleDeleteOffering(offering, e)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardTitle>
-                <div className="flex gap-2">
-                  <Badge variant="secondary">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="text-xs">
                     {offering.type === "product" ? "Product" : "Service"}
                   </Badge>
-                  <Badge className={getStatusColor(offering.status)}>
+                  <Badge className={`${getStatusColor(offering.status)} text-xs`}>
                     {offering.status.charAt(0).toUpperCase() + offering.status.slice(1)}
                   </Badge>
                 </div>
-                <CardDescription className="line-clamp-2">
+                <CardDescription className="line-clamp-2 text-sm">
                   {offering.description}
                 </CardDescription>
               </CardHeader>
@@ -554,9 +552,9 @@ export default function OfferingsPage() {
 
       {/* Pricing Tiers Section */}
       <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold">Pricing Tiers</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">Pricing Tiers</h2>
             {selectedOffering && (
               <p className="text-sm text-muted-foreground">
                 Managing tiers for: <span className="font-medium">{selectedOffering.name}</span>
@@ -587,6 +585,7 @@ export default function OfferingsPage() {
                 features: [],
               });
             }}
+            className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Pricing Tier
@@ -595,18 +594,18 @@ export default function OfferingsPage() {
 
         {!selectedOffering ? (
           <Card>
-            <CardContent className="p-6">
-              <p className="text-muted-foreground text-center">
+            <CardContent className="p-4 sm:p-6">
+              <p className="text-muted-foreground text-center text-sm">
                 Select an offering above to manage its pricing tiers
               </p>
             </CardContent>
           </Card>
         ) : isLoadingTiers ? (
-          <p>Loading pricing tiers...</p>
+          <p className="text-center py-4">Loading pricing tiers...</p>
         ) : pricingTiers.length === 0 ? (
           <Card>
-            <CardContent className="p-6">
-              <p className="text-muted-foreground text-center">
+            <CardContent className="p-4 sm:p-6">
+              <p className="text-muted-foreground text-center text-sm">
                 No pricing tiers yet. Add your first tier to get started.
               </p>
             </CardContent>
@@ -617,19 +616,24 @@ export default function OfferingsPage() {
               .filter((tier: any) => tier.offeringId === selectedOffering.id)
               .map((tier: any) => (
                 <Card key={tier.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
+                  <CardHeader className="space-y-2 p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <CardTitle>{tier.name}</CardTitle>
-                        <div className="mt-1 text-2xl font-bold">
+                        <CardTitle className="text-lg sm:text-xl">{tier.name}</CardTitle>
+                        <div className="mt-1 text-xl sm:text-2xl font-bold">
                           ${tier.price.amount}
-                          {tier.price.billingCycle && <span className="text-sm text-muted-foreground">/{tier.price.billingCycle}</span>}
+                          {tier.price.billingCycle && (
+                            <span className="text-sm text-muted-foreground ml-1">
+                              /{tier.price.billingCycle}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
+                          className="h-8 w-8"
                           onClick={() => {
                             setEditingTier(tier);
                             setShowPricingTierForm(true);
@@ -637,7 +641,6 @@ export default function OfferingsPage() {
                               name: tier.name,
                               description: tier.description,
                               price: tier.price,
-                              billingCycle: tier.price.billingCycle,
                               offeringId: tier.offeringId,
                               features: tier.features || [],
                             });
@@ -647,7 +650,8 @@ export default function OfferingsPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
+                          className="h-8 w-8"
                           onClick={() => {
                             if (confirm("Are you sure you want to delete this pricing tier?")) {
                               deletePricingTier.mutate(tier.id);
@@ -659,18 +663,18 @@ export default function OfferingsPage() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground mb-4">{tier.description}</p>
+                  <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                    <p className="text-sm text-muted-foreground mb-4">{tier.description}</p>
                     {tier.features && tier.features.length > 0 && (
-                      <Accordion type="single" collapsible>
+                      <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="features">
-                          <AccordionTrigger>Features</AccordionTrigger>
+                          <AccordionTrigger className="text-sm">Features</AccordionTrigger>
                           <AccordionContent>
                             <ul className="space-y-2">
                               {tier.features.map((feature: string, index: number) => (
-                                <li key={index} className="flex items-center">
-                                  <Check className="h-4 w-4 mr-2 text-green-500" />
-                                  {feature}
+                                <li key={index} className="flex items-center text-sm">
+                                  <Check className="h-4 w-4 mr-2 text-green-500 flex-shrink-0" />
+                                  <span>{feature}</span>
                                 </li>
                               ))}
                             </ul>
@@ -685,11 +689,11 @@ export default function OfferingsPage() {
         )}
       </div>
 
-      {/* Pricing Tier Form Dialog */}
+      {/* Form Dialogs */}
       <Dialog open={showPricingTierForm} onOpenChange={setShowPricingTierForm}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px] p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
               {editingTier ? "Edit Pricing Tier" : "Add Pricing Tier"}
             </DialogTitle>
           </DialogHeader>
@@ -714,8 +718,6 @@ export default function OfferingsPage() {
                 },
                 features: data.features || [],
               };
-
-              console.log('Submitting form data:', formData);
 
               if (editingTier) {
                 updatePricingTier.mutate({ id: editingTier.id, data: formData });
@@ -746,7 +748,7 @@ export default function OfferingsPage() {
                       <FormControl>
                         <Textarea
                           placeholder="Describe what this tier offers"
-                          className="min-h-[100px]"
+                          className="min-h-[100px] resize-none"
                           {...field}
                         />
                       </FormControl>
@@ -754,7 +756,7 @@ export default function OfferingsPage() {
                     </FormItem>
                   )}
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={pricingTierForm.control}
                     name="price.amount"
@@ -788,7 +790,7 @@ export default function OfferingsPage() {
                   />
                 </div>
               </div>
-              <DialogFooter className="mt-6">
+              <DialogFooter className="mt-6 flex-col sm:flex-row gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -796,10 +798,14 @@ export default function OfferingsPage() {
                     setShowPricingTierForm(false);
                     setEditingTier(null);
                   }}
+                  className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
+                <Button 
+                  type="submit"
+                  className="w-full sm:w-auto"
+                >
                   {editingTier ? "Update Tier" : "Add Tier"}
                 </Button>
               </DialogFooter>
