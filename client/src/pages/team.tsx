@@ -217,6 +217,13 @@ export default function TeamPage() {
         description: "The team member has been deleted successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const deletePosition = useMutation({
@@ -234,6 +241,13 @@ export default function TeamPage() {
         description: "The position has been deleted successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const deleteCandidate = useMutation({
@@ -251,6 +265,13 @@ export default function TeamPage() {
         description: "The candidate has been deleted successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   // Add file upload mutation
@@ -299,6 +320,13 @@ export default function TeamPage() {
         description: "The team member has been updated successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const updatePosition = useMutation({
@@ -319,6 +347,13 @@ export default function TeamPage() {
         description: "The position has been updated successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const updateCandidate = useMutation({
@@ -339,6 +374,13 @@ export default function TeamPage() {
         description: "The candidate has been updated successfully.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, entityType: string, entityId: number) => {
@@ -406,15 +448,47 @@ export default function TeamPage() {
     switch (type) {
       case 'team':
         setEditingTeamMember(null);
-        teamMemberForm.reset();
+        setShowTeamForm(false);
+        teamMemberForm.reset({
+          name: '',
+          role: '',
+          department: '',
+          email: '',
+          startDate: new Date().toISOString().split('T')[0],
+          skills: '',
+          bio: '',
+          salary: '',
+        });
         break;
       case 'position':
         setEditingPosition(null);
-        positionForm.reset();
+        setShowPositionForm(false);
+        positionForm.reset({
+          title: '',
+          department: '',
+          description: '',
+          requirements: '',
+          minSalary: '',
+          maxSalary: '',
+          location: '',
+          remoteAllowed: false,
+        });
         break;
       case 'candidate':
         setEditingCandidate(null);
-        candidateForm.reset();
+        setShowCandidateForm(false);
+        candidateForm.reset({
+          positionId: 0,
+          name: '',
+          email: '',
+          phone: '',
+          resumeUrl: '',
+          skills: '',
+          experienceYears: '',
+          highlights: '',
+          notes: '',
+          rating: '',
+        });
         break;
     }
   };
@@ -428,12 +502,12 @@ export default function TeamPage() {
         teamMemberForm.reset({
           name: item.name,
           role: item.role,
-          department: item.department,
+          department: item.department || '',
           email: item.email,
           startDate: new Date(item.startDate).toISOString().split('T')[0],
-          skills: item.skills.join(', '),
-          bio: item.bio,
-          salary: item.salary?.toString(),
+          skills: item.skills?.join(', ') || '',
+          bio: item.bio || '',
+          salary: item.salary?.toString() || '',
         });
         break;
       case 'position':
@@ -443,11 +517,11 @@ export default function TeamPage() {
           title: item.title,
           department: item.department,
           description: item.description,
-          requirements: item.requirements.join(', '),
-          minSalary: item.salary?.min.toString(),
-          maxSalary: item.salary?.max.toString(),
-          location: item.location,
-          remoteAllowed: item.remoteAllowed,
+          requirements: item.requirements?.join(', ') || '',
+          minSalary: item.salary?.min?.toString() || '',
+          maxSalary: item.salary?.max?.toString() || '',
+          location: item.location || '',
+          remoteAllowed: item.remoteAllowed || false,
         });
         break;
       case 'candidate':
@@ -457,15 +531,76 @@ export default function TeamPage() {
           positionId: item.positionId,
           name: item.name,
           email: item.email,
-          phone: item.phone,
-          resumeUrl: item.resumeUrl,
-          skills: item.skills.join(', '),
-          experienceYears: item.experience.years.toString(),
-          highlights: item.experience.highlights.join(', '),
-          notes: item.notes,
-          rating: item.rating?.toString(),
+          phone: item.phone || '',
+          resumeUrl: item.resumeUrl || '',
+          skills: item.skills?.join(', ') || '',
+          experienceYears: item.experience?.years?.toString() || '',
+          highlights: item.experience?.highlights?.join(', ') || '',
+          notes: item.notes || '',
+          rating: item.rating?.toString() || '',
         });
         break;
+    }
+  };
+
+  // Handle delete operations
+  const handleDelete = async (type: 'team' | 'position' | 'candidate', id: number) => {
+    try {
+      switch (type) {
+        case 'team':
+          await deleteTeamMember.mutateAsync(id);
+          break;
+        case 'position':
+          await deletePosition.mutateAsync(id);
+          break;
+        case 'candidate':
+          await deleteCandidate.mutateAsync(id);
+          break;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle form submissions
+  const handleSubmit = async (type: 'team' | 'position' | 'candidate', data: any) => {
+    try {
+      switch (type) {
+        case 'team':
+          if (editingTeamMember) {
+            await updateTeamMember.mutateAsync({ id: editingTeamMember.id, data });
+          } else {
+            await addTeamMember.mutateAsync(data);
+          }
+          cancelEdit('team');
+          break;
+        case 'position':
+          if (editingPosition) {
+            await updatePosition.mutateAsync({ id: editingPosition.id, data });
+          } else {
+            await addPosition.mutateAsync(data);
+          }
+          cancelEdit('position');
+          break;
+        case 'candidate':
+          if (editingCandidate) {
+            await updateCandidate.mutateAsync({ id: editingCandidate.id, data });
+          } else {
+            await addCandidate.mutateAsync(data);
+          }
+          cancelEdit('candidate');
+          break;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save item",
+        variant: "destructive",
+      });
     }
   };
 
@@ -519,11 +654,7 @@ export default function TeamPage() {
             <Card className="mb-4">
               <CardContent className="pt-6">
                 <Form {...teamMemberForm}>
-                  <form onSubmit={teamMemberForm.handleSubmit((data) =>
-                    editingTeamMember
-                      ? updateTeamMember.mutate({ id: editingTeamMember.id, data })
-                      : addTeamMember.mutate(data)
-                  )}>
+                  <form onSubmit={teamMemberForm.handleSubmit((data) => handleSubmit('team', data))}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={teamMemberForm.control}
@@ -660,7 +791,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteTeamMember.mutate(member.id)}
+                          onClick={() => handleDelete('team', member.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -742,11 +873,7 @@ export default function TeamPage() {
             <Card className="mb-4">
               <CardContent className="pt-6">
                 <Form {...positionForm}>
-                  <form onSubmit={positionForm.handleSubmit((data) =>
-                    editingPosition
-                      ? updatePosition.mutate({ id: editingPosition.id, data })
-                      : addPosition.mutate(data)
-                  )}>
+                  <form onSubmit={positionForm.handleSubmit((data) => handleSubmit('position', data))}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={positionForm.control}
@@ -917,7 +1044,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deletePosition.mutate(position.id)}
+                          onClick={() => handleDelete('position', position.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1000,11 +1127,7 @@ export default function TeamPage() {
             <Card className="mb-4">
               <CardContent className="pt-6">
                 <Form {...candidateForm}>
-                  <form onSubmit={candidateForm.handleSubmit((data) =>
-                    editingCandidate
-                      ? updateCandidate.mutate({ id: editingCandidate.id, data })
-                      : addCandidate.mutate(data)
-                  )}>
+                  <form onSubmit={candidateForm.handleSubmit((data) => handleSubmit('candidate', data))}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={candidateForm.control}
@@ -1214,7 +1337,7 @@ export default function TeamPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteCandidate.mutate(candidate.id)}
+                          onClick={() => handleDelete('candidate', candidate.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
