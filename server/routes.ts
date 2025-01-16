@@ -468,43 +468,67 @@ Culture & Values:
       return res.status(401).send("Not authenticated");
     }
     try {
-      // Get all business info records
-      const businessInfoRecords = await db.query.businessInfo.findMany({
-        where: eq(businessInfo.userId, req.user.id),
-        orderBy: (info, { desc }) => [desc(info.updatedAt)]
-      });
+      // Force no-cache for this request
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
+      // Get all business info records with explicit selection
+      const businessInfoRecords = await db
+        .select()
+        .from(businessInfo)
+        .where(eq(businessInfo.userId, req.user.id))
+        .orderBy(desc(businessInfo.updatedAt));
+
+      // Log raw records for debugging
+      console.log("Raw business info records:",
+        businessInfoRecords.map(r => ({
+          id: r.id,
+          section: r.section,
+          hasContent: Boolean(r.content),
+          hasFields: r.fields ? Object.keys(r.fields).length : 0
+        }))
+      );
 
       // Group by section to get latest entries and preserve all fields
       const latestSectionMap = businessInfoRecords.reduce((acc, curr) => {
         const existingRecord = acc[curr.section];
         if (!existingRecord || new Date(existingRecord.updatedAt) < new Date(curr.updatedAt)) {
-          // Ensure we preserve fields object even if it's empty
           acc[curr.section] = {
             ...curr,
-            fields: curr.fields || {}
+            fields: curr.fields || {},  // Ensure fields is always an object
+            content: curr.content || "" // Ensure content is always a string
           };
         }
         return acc;
       }, {} as Record<string, typeof businessInfoRecords[0]>);
 
       // Convert map to array and sort by section
-      const sections = Object.values(latestSectionMap).sort((a, b) =>
-        a.section.localeCompare(b.section)
-      );
+      const sections = Object.values(latestSectionMap)
+        .sort((a, b) => a.section.localeCompare(b.section))
+        .map(section => ({
+          ...section,
+          fields: section.fields || {},
+          content: section.content || ""
+        }));
 
-      // Log the response for debugging
-      console.log("Returning business info sections:",
+      // Log processed sections for debugging
+      console.log("Processed business info sections:",
         sections.map(s => ({
           section: s.section,
           hasFields: Object.keys(s.fields || {}).length > 0,
-          hasContent: Boolean(s.content)
+          hasContent: Boolean(s.content),
+          contentPreview: s.content?.substring(0, 50)
         }))
       );
 
       res.json(sections);
     } catch (error) {
       console.error("Error fetching business info:", error);
-      res.status(500).send("Failed to fetch business info");
+      res.status(500).json({
+        error: "Failed to fetch business info",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -893,7 +917,7 @@ Culture & Values:
 
       // First delete any candidates associated with this position
       await db.delete(candidates).where(eq(candidates.positionId, positionId));
-      // Then delete the position
+      //      // Then delete the position
       await db.delete(positions).where(eq(positions.id, positionId));
 
       res.json({ success: true });
@@ -1769,7 +1793,6 @@ Culture & Values:
 
   app.delete("/api/pricing-tiers/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const tierId = parseInt(req.params.id);
       if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
@@ -1798,20 +1821,20 @@ Culture & Values:
   // Pricing Features API
   app.get("/api/pricing-tiers/:tierId/features", async (req, res) => {
     if (!req.isAuthenticated) return res.status(401).send("Not authenticated");
-    
+
     try {
       const tierId = parseInt(req.params.tierId);
       if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-      
+
       const [tier] = await db
         .select()
         .from(pricingTiers)
         .where(eq(pricingTiers.id, tierId))
         .limit(1);
-      
+
       if (!tier) return res.status(404).send("Pricing tier not found");
       if (tier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       const features = await db.query.pricingFeatures.findMany({
         where: eq(pricingFeatures.tierId, tierId),
         orderBy: (features, { asc }) => [asc(features.sortOrder)]
@@ -1822,48 +1845,48 @@ Culture & Values:
       res.status(500).send("Failed to fetch pricing features");
     }
   });
-  
+
   app.post("/api/pricing-tiers/:tierId/features", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const tierId = parseInt(req.params.tierId);
       if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-      
+
       const [tier] = await db
         .select()
         .from(pricingTiers)
         .where(eq(pricingTiers.id, tierId))
         .limit(1);
-      
+
       if (!tier) return res.status(404).send("Pricing tier not found");
       if (tier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       const result = pricingFeatureSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).send(
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-      
+
       const [feature] = await db.insert(pricingFeatures)
         .values({
           ...result.data,
           tierId
         })
         .returning();
-      
+
       res.json(feature);
     } catch (error) {
       console.error("Error creating pricing feature:", error);
       res.status(500).send("Failed to create pricing feature");
     }
   });
-  
+
   // Packages API
   app.get("/api/packages", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const userPackages = await db.query.packages.findMany({
         where: eq(packages.userId, req.user.id),
@@ -1882,10 +1905,10 @@ Culture & Values:
       res.status(500).send("Failed to fetch packages");
     }
   });
-  
+
   app.post("/api/packages", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const result = packageSchema.safeParse(req.body);
       if (!result.success) {
@@ -1893,44 +1916,44 @@ Culture & Values:
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-      
+
       const [pkg] = await db.insert(packages)
         .values({
           ...result.data,
           userId: req.user.id
         })
         .returning();
-      
+
       res.json(pkg);
     } catch (error) {
       console.error("Error creating package:", error);
       res.status(500).send("Failed to create package");
     }
   });
-  
+
   app.patch("/api/packages/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const packageId = parseInt(req.params.id);
       if (isNaN(packageId)) return res.status(400).send("Invalid package ID");
-      
+
       const [existingPackage] = await db
         .select()
         .from(packages)
         .where(eq(packages.id, packageId))
         .limit(1);
-      
+
       if (!existingPackage) return res.status(404).send("Package not found");
       if (existingPackage.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       const result = packageSchema.partial().safeParse(req.body);
       if (!result.success) {
         return res.status(400).send(
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-      
+
       const [updatedPackage] = await db
         .update(packages)
         .set({
@@ -1939,76 +1962,76 @@ Culture & Values:
         })
         .where(eq(packages.id, packageId))
         .returning();
-      
+
       res.json(updatedPackage);
     } catch (error) {
       console.error("Error updating package:", error);
       res.status(500).send("Failed to update package");
     }
   });
-  
+
   app.delete("/api/packages/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const packageId = parseInt(req.params.id);
       if (isNaN(packageId)) return res.status(400).send("Invalid package ID");
-      
+
       const [existingPackage] = await db
         .select()
         .from(packages)
         .where(eq(packages.id, packageId))
         .limit(1);
-      
+
       if (!existingPackage) return res.status(404).send("Package not found");
       if (existingPackage.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       // First delete package offerings
       await db.delete(packageOfferings).where(eq(packageOfferings.packageId, packageId));
       // Then delete the package
       await db.delete(packages).where(eq(packages.id, packageId));
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting package:", error);
       res.status(500).send("Failed to delete package");
     }
   });
-  
+
   // Package Offerings API
   app.post("/api/packages/:packageId/offerings", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const packageId = parseInt(req.params.packageId);
       if (isNaN(packageId)) return res.status(400).send("Invalid package ID");
-      
+
       const [pkg] = await db
         .select()
         .from(packages)
         .where(eq(packages.id, packageId))
         .limit(1);
-      
+
       if (!pkg) return res.status(404).send("Package not found");
       if (pkg.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       const result = packageOfferingSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).send(
           "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         );
       }
-      
+
       // Verify offering exists and belongs to user
       const [offering] = await db
         .select()
         .from(offerings)
         .where(eq(offerings.id, result.data.offeringId))
         .limit(1);
-      
+
       if (!offering) return res.status(404).send("Offering not found");
       if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       // If tier is specified, verify it exists and belongs to the offering
       if (result.data.tierId) {
         const [tier] = await db
@@ -2016,57 +2039,57 @@ Culture & Values:
           .from(pricingTiers)
           .where(eq(pricingTiers.id, result.data.tierId))
           .limit(1);
-        
+
         if (!tier) return res.status(404).send("Pricing tier not found");
         if (tier.offeringId !== offering.id) return res.status(400).send("Pricing tier does not belong to the offering");
       }
-      
+
       const [packageOffering] = await db.insert(packageOfferings)
         .values({
           ...result.data,
           packageId
         })
         .returning();
-      
+
       res.json(packageOffering);
     } catch (error) {
       console.error("Error adding offering to package:", error);
       res.status(500).send("Failed to add offering to package");
     }
   });
-  
+
   app.delete("/api/packages/:packageId/offerings/:offeringId", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    
+
     try {
       const packageId = parseInt(req.params.packageId);
       const offeringId = parseInt(req.params.offeringId);
       if (isNaN(packageId) || isNaN(offeringId)) return res.status(400).send("Invalid IDs");
-      
+
       const [pkg] = await db
         .select()
         .from(packages)
         .where(eq(packages.id, packageId))
         .limit(1);
-      
+
       if (!pkg) return res.status(404).send("Package not found");
       if (pkg.userId !== req.user.id) return res.status(403).send("Unauthorized");
-      
+
       await db.delete(packageOfferings)
         .where(and(
           eq(packageOfferings.packageId, packageId),
           eq(packageOfferings.offeringId, offeringId)
         ));
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error removing offering from package:", error);
       res.status(500).send("Failed to remove offering from package");
     }
   });
-  
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
-  
+
   return httpServer;
 }
