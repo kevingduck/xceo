@@ -20,6 +20,15 @@ export type BusinessSection = {
   };
 };
 
+type TaskFunctionCall = {
+  name: "create_task";
+  args: {
+    title: string;
+    description?: string;
+    status?: "todo" | "in_progress" | "done";
+  };
+};
+
 export const businessSections: BusinessSection[] = [
   {
     section: "Business Overview",
@@ -32,6 +41,24 @@ export const businessSections: BusinessSection[] = [
     }
   }
 ];
+
+async function executeTaskFunction(userId: number, functionCall: TaskFunctionCall) {
+  try {
+    const { args } = functionCall;
+    const [task] = await db.insert(tasks)
+      .values({
+        userId,
+        title: args.title,
+        description: args.description || '',
+        status: args.status || 'todo',
+      })
+      .returning();
+    return task;
+  } catch (error) {
+    console.error("Error executing task function:", error);
+    throw new Error("Failed to create task");
+  }
+}
 
 export async function processAIMessage(
   userId: number,
@@ -75,9 +102,12 @@ You can:
 3. Recommend new tasks based on business objectives
 4. Analyze task progress and priorities
 
-Respond naturally while keeping this context in mind.`;
+When the user suggests or implies a new task should be created, you can create it directly using the create_task function.
+The create_task function accepts: title (required), description (optional), and status (optional, defaults to "todo").
 
-    // Call Anthropic API with proper message structure
+Respond naturally while keeping this context in mind. If a new task should be created based on the conversation, use the create_task function.`;
+
+    // Call Anthropic API with proper message structure and tool definition
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
@@ -88,17 +118,58 @@ Respond naturally while keeping this context in mind.`;
           content: msg.content
         })) || []),
         { role: "user", content }
-      ]
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "create_task",
+          description: "Create a new task in the system",
+          parameters: {
+            type: "object",
+            properties: {
+              title: {
+                type: "string",
+                description: "The title of the task"
+              },
+              description: {
+                type: "string",
+                description: "Optional detailed description of the task"
+              },
+              status: {
+                type: "string",
+                enum: ["todo", "in_progress", "done"],
+                description: "The status of the task, defaults to todo if not specified"
+              }
+            },
+            required: ["title"]
+          }
+        }
+      }]
     });
 
+    // Process tool calls if any
+    let createdTask = null;
+    if (response.content[0]?.type === 'tool_call') {
+      const toolCall = response.content[0].tool_calls[0];
+      if (toolCall.function.name === 'create_task') {
+        const args = JSON.parse(toolCall.function.arguments);
+        createdTask = await executeTaskFunction(userId, { name: "create_task", args });
+      }
+    }
+
     // Safely extract content from the response
-    const aiContent = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    const aiContent = response.content
+      .filter(c => c.type === 'text')
+      .map(c => c.text)
+      .join('\n');
 
     // Extract suggested actions based on AI response
     const suggestedActions = extractSuggestedActions(aiContent, tasksContext);
 
     return {
-      content: aiContent,
+      content: createdTask 
+        ? `${aiContent}\n\nI've created a new task: "${createdTask.title}"`
+        : aiContent,
       suggestedActions
     };
   } catch (error) {
