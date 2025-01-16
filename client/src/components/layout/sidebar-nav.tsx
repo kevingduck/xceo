@@ -62,7 +62,7 @@ export function SidebarNav({ mobile, onClose }: SidebarNavProps) {
   return (
     <div className={cn(
       "flex flex-col h-full",
-      mobile ? "bg-background" : "w-64 border-r bg-card"
+      mobile ? "bg-background" : "bg-card"
     )}>
       <div className="h-14 border-b flex items-center px-4 justify-between">
         <span className="font-bold text-xl">AI CEO</span>
@@ -92,11 +92,16 @@ export function SidebarNav({ mobile, onClose }: SidebarNavProps) {
                     "hover:bg-accent hover:text-accent-foreground",
                     "active:bg-accent/80",
                     "touch-manipulation",
-                    isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                    isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+                    // Add tooltip-like behavior for collapsed state
+                    "group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:justify-center",
+                    "group-data-[collapsible=icon]:tooltip-content group-data-[collapsible=icon]:tooltip-right"
                   )}
                 >
-                  <Icon className="h-5 w-5" />
-                  {item.title}
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="truncate group-data-[collapsible=icon]:hidden">
+                    {item.title}
+                  </span>
                 </div>
               </Link>
             );
