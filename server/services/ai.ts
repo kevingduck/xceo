@@ -3,7 +3,6 @@ import { db } from '@db';
 import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages } from '@db/schema';
 import { eq, desc, and, gt } from 'drizzle-orm';
 
-// the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -48,6 +47,8 @@ async function executeTaskFunction(userId: number, functionCall: TaskFunctionCal
         title: args.title,
         description: args.description || '',
         status: args.status || 'todo',
+        createdAt: new Date(),
+        updatedAt: new Date()
       })
       .returning();
     return task;
@@ -187,18 +188,23 @@ When appropriate, you can:
 
 Respond naturally while keeping this context in mind.`;
 
+    // Filter out empty messages and ensure proper role values
+    const messages = [
+      { role: "user" as const, content: contextMessage },
+      ...(businessContext?.recentMessages
+        ?.filter(msg => msg.content?.trim())
+        ?.map(msg => ({
+          role: msg.role === "assistant" ? "assistant" : "user",
+          content: msg.content
+        })) || []),
+      { role: "user" as const, content }
+    ];
+
     // Call Anthropic API
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
-      messages: [
-        { role: "user", content: contextMessage },
-        ...(businessContext?.recentMessages?.map(msg => ({
-          role: msg.role === "assistant" ? "assistant" : "user",
-          content: msg.content
-        })) || []),
-        { role: "user", content }
-      ],
+      messages,
       system: `You are a business management AI assistant that can help create and manage tasks, and update business information. When updating business fields, ensure the values match the field type (text, number, currency, percentage, date, or list). Always use the appropriate function to make changes.`,
       tools: [
         {
@@ -272,19 +278,20 @@ Respond naturally while keeping this context in mind.`;
       if ('tool_calls' in content) {
         const toolCalls = content.tool_calls || [];
         for (const toolCall of toolCalls) {
-          if (toolCall.name === 'create_task') {
-            try {
-              const args = JSON.parse(toolCall.arguments);
-              createdTask = await executeTaskFunction(userId, { name: "create_task", args });
-            } catch (error) {
-              console.error("Error processing task tool call:", error);
-            }
-          } else if (toolCall.name === 'update_business_field') {
-            try {
-              const args = JSON.parse(toolCall.arguments);
-              updatedField = await executeBusinessFieldUpdate(userId, { name: "update_business_field", args });
-            } catch (error) {
-              console.error("Error processing business field update tool call:", error);
+          if (toolCall.type === 'function' && toolCall.function) {
+            const { name, arguments: args } = toolCall.function;
+            if (name === 'create_task') {
+              try {
+                createdTask = await executeTaskFunction(userId, { name, args: JSON.parse(args) });
+              } catch (error) {
+                console.error("Error processing task tool call:", error);
+              }
+            } else if (name === 'update_business_field') {
+              try {
+                updatedField = await executeBusinessFieldUpdate(userId, { name, args: JSON.parse(args) });
+              } catch (error) {
+                console.error("Error processing business field update tool call:", error);
+              }
             }
           }
         }
