@@ -8,6 +8,7 @@ import { DroppableColumn } from "@/components/widgets/droppable-column";
 import { Plus, Loader2 } from "lucide-react";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
+import { useToast } from "@/hooks/use-toast";
 
 const statusMap = {
   todo: "todo",
@@ -21,6 +22,7 @@ export default function Tasks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { createIssue } = useGitHub();
+  const { toast } = useToast();
 
   // Configure DnD sensors
   const sensors = useSensors(
@@ -50,7 +52,10 @@ export default function Tasks() {
         credentials: "include"
       });
 
-      if (!response.ok) throw new Error("Failed to create task");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create task");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -58,6 +63,17 @@ export default function Tasks() {
       setIsDialogOpen(false);
       setTitle("");
       setDescription("");
+      toast({
+        title: "Success",
+        description: "Task created successfully"
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
@@ -66,15 +82,25 @@ export default function Tasks() {
       const response = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: statusMap[status as keyof typeof statusMap] }),
+        body: JSON.stringify({ status }),
         credentials: "include"
       });
 
-      if (!response.ok) throw new Error("Failed to update task");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update task");
+      }
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
@@ -106,7 +132,10 @@ export default function Tasks() {
 
     if (isNaN(taskId) || !Object.keys(statusMap).includes(newStatus)) return;
 
-    updateTaskStatus.mutate({ id: taskId, status: newStatus });
+    updateTaskStatus.mutate({ 
+      id: taskId, 
+      status: statusMap[newStatus as keyof typeof statusMap]
+    });
   };
 
   const todoTasks = tasks.filter(t => t.status === statusMap.todo);

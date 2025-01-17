@@ -86,21 +86,28 @@ export function registerRoutes(app: Express): Server {
 
       const result = updateTaskSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
       }
 
       const [updatedTask] = await db
         .update(tasks)
-        .set({ ...result.data, updatedAt: new Date() })
+        .set({ 
+          ...result.data,
+          updatedAt: new Date() 
+        })
         .where(eq(tasks.id, taskId))
         .returning();
 
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task:", error);
-      res.status(500).send("Failed to update task");
+      res.status(500).json({
+        message: "Failed to update task",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1888,8 +1895,7 @@ Culture & Values:
 
       const features = await db.query.offeringFeatures.findMany({
         where: eq(offeringFeatures.offeringId, offeringId),
-        orderBy: (features, { desc }) => [desc(features.createdAt)]
-      });
+        orderBy: (features, { desc }) => [desc(features.createdAt)]      });
 
       res.json(features);
     } catch (error) {
