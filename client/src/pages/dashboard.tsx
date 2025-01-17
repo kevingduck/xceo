@@ -42,7 +42,7 @@ export default function Dashboard() {
     .slice(0, 3);
 
   const inProgressTasks = tasks
-    .filter(task => task.status === "inProgress")
+    .filter(task => task.status === "in_progress")
     .slice(0, 3);
 
   const activityData = analytics

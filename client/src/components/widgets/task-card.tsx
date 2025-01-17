@@ -29,14 +29,14 @@ export function TaskCard({ task }: TaskCardProps) {
 
   const statusColors = {
     todo: "bg-yellow-500/10 text-yellow-600",
-    inProgress: "bg-blue-500/10 text-blue-600",
-    completed: "bg-green-500/10 text-green-600"
+    in_progress: "bg-blue-500/10 text-blue-600",
+    done: "bg-green-500/10 text-green-600"
   };
 
   const statusLabels = {
     todo: "To Do",
-    inProgress: "In Progress",
-    completed: "Completed"
+    in_progress: "In Progress",
+    done: "Done"
   };
 
   const updateTask = useMutation({
@@ -138,11 +138,11 @@ export function TaskCard({ task }: TaskCardProps) {
                   <DropdownMenuItem onClick={() => handleStatusChange("todo")}>
                     To Do
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusChange("inProgress")}>
+                  <DropdownMenuItem onClick={() => handleStatusChange("in_progress")}>
                     In Progress
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusChange("completed")}>
-                    Completed
+                  <DropdownMenuItem onClick={() => handleStatusChange("done")}>
+                    Done
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

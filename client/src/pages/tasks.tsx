@@ -138,9 +138,9 @@ export default function Tasks() {
     });
   };
 
-  const todoTasks = tasks.filter(t => t.status === statusMap.todo);
-  const inProgressTasks = tasks.filter(t => t.status === statusMap.in_progress);
-  const completedTasks = tasks.filter(t => t.status === statusMap.done);
+  const todoTasks = tasks.filter(t => t.status === "todo");
+  const inProgressTasks = tasks.filter(t => t.status === "in_progress");
+  const completedTasks = tasks.filter(t => t.status === "done");
 
   if (isLoading) {
     return (
