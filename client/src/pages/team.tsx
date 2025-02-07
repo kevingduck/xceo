@@ -86,8 +86,20 @@ export default function TeamPage() {
   const [showCandidateForm, setShowCandidateForm] = useState(false);
 
   // Fetch data
-  const { data: teamMembers, isLoading: isLoadingTeam } = useQuery({
+  const { data: teamMembers = [], isLoading: isLoadingTeam } = useQuery({
     queryKey: ["/api/team-members"],
+    queryFn: async () => {
+      const response = await fetch("/api/team-members", {
+        credentials: "include",
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch team members");
+      }
+      return response.json();
+    }
   });
 
   const { data: positions, isLoading: isLoadingPositions } = useQuery({
@@ -680,10 +692,10 @@ export default function TeamPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingTeam ? (
               <p>Loading team members...</p>
-            ) : teamMembers?.length === 0 ? (
+            ) : !Array.isArray(teamMembers) || teamMembers.length === 0 ? (
               <p>No team members yet.</p>
             ) : (
-              teamMembers?.map((member: any) => (
+              teamMembers.map((member: any) => (
                 <Card key={member.id}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">
@@ -730,7 +742,7 @@ export default function TeamPage() {
                           <span>${member.salary.toLocaleString()}</span>
                         </div>
                       )}
-                      {member.skills && (
+                      {Array.isArray(member.skills) && member.skills.length > 0 && (
                         <div className="flex items-center">
                           <GraduationCap className="mr-2 h-4 w-4" />
                           <div className="flex flex-wrap gap-1">
