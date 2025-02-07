@@ -1782,6 +1782,7 @@ Culture & Values:
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
+      const { offerings } = await import("@db/schema");
       const userOfferings = await db.query.offerings.findMany({
         where: eq(offerings.userId, req.user.id),
         orderBy: (offerings, { desc }) => [desc(offerings.createdAt)]
