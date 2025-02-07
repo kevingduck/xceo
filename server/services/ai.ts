@@ -3,6 +3,7 @@ import { db } from '@db';
 import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries } from '@db/schema';
 import { eq, desc, and, gt } from 'drizzle-orm';
 
+// the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -150,20 +151,6 @@ export async function processAIMessage(
       orderBy: [desc(tasks.updatedAt)]
     });
 
-    // Fetch latest business info for each section
-    const businessSections = await db.query.businessInfo.findMany({
-      where: eq(businessInfo.userId, userId),
-      orderBy: [desc(businessInfo.updatedAt)]
-    });
-
-    // Group by section to get latest entries
-    const latestSectionMap = businessSections.reduce((acc, curr) => {
-      if (!acc[curr.section] || new Date(acc[curr.section].updatedAt) < new Date(curr.updatedAt)) {
-        acc[curr.section] = curr;
-      }
-      return acc;
-    }, {} as Record<string, typeof businessSections[0]>);
-
     // Format tasks for context
     const tasksContext = userTasks.map(task => ({
       id: task.id,
@@ -173,56 +160,23 @@ export async function processAIMessage(
       updatedAt: task.updatedAt.toISOString()
     }));
 
-    // Create a detailed business context message
-    const businessInfoContext = Object.entries(latestSectionMap).reduce((acc, [section, data]) => {
-      const fields = data.fields || {};
-      acc[section] = {
-        content: data.content,
-        fields: Object.entries(fields).map(([key, value]) => ({
-          name: key,
-          value: value.value,
-          type: value.type,
-          updatedAt: value.updatedAt
-        }))
-      };
-      return acc;
-    }, {} as Record<string, any>);
-
     // Create a more detailed context message
     const contextMessage = `You are an AI CEO assistant. ${
       businessContext 
         ? `You are helping manage ${businessContext.name}. The business description is: ${businessContext.description}. Key objectives: ${businessContext.objectives.join(", ")}.`
         : "You are helping manage a business."
     }
-Business Information:
-${Object.entries(businessInfoContext).map(([section, data]) => `
-${section}:
-${data.content}
-
-Current Fields:
-${data.fields.map((field: any) => 
-  `- ${field.name}: ${field.value} (${field.type})`
-).join("\n")}`).join("\n\n")}
 
 Current Tasks (${tasksContext.length}):
 ${tasksContext.map(task => 
   `- ${task.title} (${task.status})${task.description ? `\n  Description: ${task.description}` : ''}`
 ).join("\n")}
 
-You have full access to all business information shown above. Use this information to provide accurate and contextual responses.
 You can:
-1. Discuss and provide insights about tasks and business information
-2. Suggest task status updates
-3. Recommend new tasks based on business objectives
-4. Update business information fields directly
-5. Analyze business metrics and provide recommendations
+1. Create new tasks using the create_task function
+2. Update business information using the update_business_field function
 
-When appropriate, you can:
-- Create tasks using the create_task function
-- Update business fields using the update_business_field function
-
-Always refer to the actual business data when answering questions about the business.
-`;
+Remember to use the available tools when appropriate.`;
 
     // Filter out empty messages and ensure proper role values
     const messages = [
@@ -241,107 +195,105 @@ Always refer to the actual business data when answering questions about the busi
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       messages,
-      system: `You are a business management AI assistant with access to the company's business information and tasks. When discussing business details, always refer to the actual data provided in the context. Be specific when mentioning business information and ensure accuracy in your responses.`,
+      system: `You are a business management AI assistant. When a user requests task creation or business updates, always use the appropriate tool function rather than just describing what should be done. Be proactive in using the tools provided.`,
       tools: [
         {
-          name: "create_task",
-          description: "Create a new task in the system",
-          input_schema: {
-            type: "object",
-            properties: {
-              title: {
-                type: "string",
-                description: "The title of the task"
+          type: "function",
+          function: {
+            name: "create_task",
+            description: "Create a new task in the system",
+            parameters: {
+              type: "object",
+              properties: {
+                title: {
+                  type: "string",
+                  description: "The title of the task"
+                },
+                description: {
+                  type: "string",
+                  description: "Optional detailed description of the task"
+                },
+                status: {
+                  type: "string",
+                  enum: ["todo", "in_progress", "done"],
+                  description: "The status of the task, defaults to todo if not specified"
+                }
               },
-              description: {
-                type: "string",
-                description: "Optional detailed description of the task"
-              },
-              status: {
-                type: "string",
-                enum: ["todo", "in_progress", "done"],
-                description: "The status of the task, defaults to todo if not specified"
-              }
-            },
-            required: ["title"]
+              required: ["title"]
+            }
           }
         },
         {
-          name: "update_business_field",
-          description: "Update a specific field in a business section",
-          input_schema: {
-            type: "object",
-            properties: {
-              section: {
-                type: "string",
-                description: "The section name (e.g., 'Business Overview', 'Financial Overview')"
+          type: "function",
+          function: {
+            name: "update_business_field",
+            description: "Update a specific field in a business section",
+            parameters: {
+              type: "object",
+              properties: {
+                section: {
+                  type: "string",
+                  description: "The section name (e.g., 'Business Overview', 'Financial Overview')"
+                },
+                field: {
+                  type: "string",
+                  description: "The field name to update"
+                },
+                value: {
+                  oneOf: [
+                    { type: "string" },
+                    { type: "number" },
+                    { type: "array", items: { type: "string" } }
+                  ],
+                  description: "The new value for the field"
+                },
+                type: {
+                  type: "string",
+                  enum: ["text", "number", "currency", "percentage", "date", "list"],
+                  description: "The type of the field"
+                }
               },
-              field: {
-                type: "string",
-                description: "The field name to update"
-              },
-              value: {
-                oneOf: [
-                  { type: "string" },
-                  { type: "number" },
-                  { type: "array", items: { type: "string" } }
-                ],
-                description: "The new value for the field"
-              },
-              type: {
-                type: "string",
-                enum: ["text", "number", "currency", "percentage", "date", "list"],
-                description: "The type of the field"
-              }
-            },
-            required: ["section", "field", "value", "type"]
+              required: ["section", "field", "value", "type"]
+            }
           }
         }
       ]
     });
 
-    // Extract text content from response
-    const aiContent = response.content
-      .filter(c => c.type === 'text')
-      .map(c => c.text)
-      .join('\n');
-
-    // Handle tool calls if present
     let createdTask = null;
     let updatedField = null;
+    let responseContent = '';
 
+    // Process text content and tool calls
     for (const content of response.content) {
-      if ('tool_calls' in content) {
-        const toolCalls = content.tool_calls || [];
-        for (const toolCall of toolCalls) {
-          if (toolCall.type === 'function' && toolCall.function) {
-            const { name, arguments: args } = toolCall.function;
-            if (name === 'create_task') {
-              try {
-                console.log("Processing create_task tool call");
-                const parsedArgs = JSON.parse(args);
-                createdTask = await executeTaskFunction(userId, { name, args: parsedArgs });
-                console.log("Task created successfully:", createdTask);
-              } catch (error) {
-                console.error("Error processing task tool call:", error);
-                throw new Error("Failed to create task: " + (error instanceof Error ? error.message : "Unknown error"));
-              }
-            } else if (name === 'update_business_field') {
-              try {
-                updatedField = await executeBusinessFieldUpdate(userId, { name, args: JSON.parse(args) });
-              } catch (error) {
-                console.error("Error processing business field update tool call:", error);
-              }
-            }
+      if (content.type === 'text') {
+        responseContent += content.text;
+      } else if (content.type === 'tool_call') {
+        console.log("Processing tool call:", content);
+        const { tool_name, parameters } = content;
+
+        try {
+          if (tool_name === 'create_task') {
+            console.log("Executing create_task with parameters:", parameters);
+            createdTask = await executeTaskFunction(userId, {
+              name: 'create_task',
+              args: parameters
+            });
+            console.log("Task created successfully:", createdTask);
+          } else if (tool_name === 'update_business_field') {
+            updatedField = await executeBusinessFieldUpdate(userId, {
+              name: 'update_business_field',
+              args: parameters
+            });
           }
+        } catch (error) {
+          console.error(`Error executing ${tool_name}:`, error);
+          responseContent += `\n\nI encountered an error while trying to ${tool_name === 'create_task' ? 'create the task' : 'update the business field'}: ${error.message}`;
         }
       }
     }
 
-    // Extract suggested actions
-    const suggestedActions = extractSuggestedActions(aiContent, tasksContext, businessInfoContext);
-
-    let responseContent = aiContent;
+    // Add information about created task or updated field to the response
     if (createdTask) {
       console.log("Adding created task to response:", createdTask);
       responseContent += `\n\nI've created a new task for you: "${createdTask.title}" with status "${createdTask.status}"`;
@@ -350,20 +302,22 @@ Always refer to the actual business data when answering questions about the busi
       responseContent += `\n\nI've updated the ${updatedField.section} information.`;
     }
 
+    // Extract suggested actions
+    const suggestedActions = extractSuggestedActions(responseContent, tasksContext);
+
     return {
-      content: responseContent,
+      content: responseContent.trim(),
       suggestedActions
     };
   } catch (error) {
     console.error("Error processing AI message:", error);
-    throw new Error("Failed to process message");
+    throw new Error("Failed to process message: " + (error instanceof Error ? error.message : "Unknown error"));
   }
 }
 
 function extractSuggestedActions(
   content: string,
-  tasks: any[],
-  businessInfo: Record<string, any>
+  tasks: any[]
 ) {
   const actions: Array<{
     label: string;
