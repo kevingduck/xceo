@@ -11,6 +11,16 @@ import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 
 // Schema definitions
+const teamMemberSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  role: z.string().min(1, "Role is required"),
+  department: z.string().optional(),
+  email: z.string().email("Invalid email address"),
+  startDate: z.string(),
+  skills: z.string(),
+  bio: z.string().optional(),
+  salary: z.string().optional(),
+});
 const fieldSchema = z.object({
   value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
   type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list']),
