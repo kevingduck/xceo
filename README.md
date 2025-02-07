@@ -1,4 +1,4 @@
-# AI CEO Platform
+# XCEO | AI CEO Platform
 
 Run your business with an AI that acts like a CEO - giving you guidance and direction while you stay in control.
 
@@ -12,6 +12,8 @@ Think of this as having an AI CEO advisor that's available 24/7. While you and y
 - Spotting problems before they get big
 
 You're always in charge - the AI CEO is there to advise and help organize, not to take over (or fire you). You and your team make the final calls on everything.
+
+<img width="1458" alt="image" src="https://github.com/user-attachments/assets/c8a857bb-fa14-4ce3-b033-6b4a8dca4782" />
 
 ## Main features
 
