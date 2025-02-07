@@ -1070,6 +1070,7 @@ Culture & Values:
       const [member] = await db.insert(teamMembers)
         .values({
           ...result.data,
+          skills: result.data.skills.split(',').map(s => s.trim()),
           userId: req.user.id
         })
         .returning();
