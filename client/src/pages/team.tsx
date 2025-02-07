@@ -106,7 +106,7 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map((s) => s.trim()),
+          skills: data.skills,
           salary: data.salary ? parseInt(data.salary) : undefined,
         }),
       });
