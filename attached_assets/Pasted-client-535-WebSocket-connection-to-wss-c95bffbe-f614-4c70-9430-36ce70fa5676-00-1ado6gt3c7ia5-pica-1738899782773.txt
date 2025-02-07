@@ -1,0 +1,37 @@
+client:535 WebSocket connection to 'wss://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit.dev/' failed: 
+client:535 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/' is invalid.
+    at setupWebSocket (client:535:19)
+    at fallback (client:508:16)
+    at WebSocket.<anonymous> (client:551:7)
+chunk-WERSD76P.js?v=183d44d8:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+api/user:1 
+ Failed to load resource: the server responded with a status of 401 (Unauthorized)
+2
+team.tsx:737 Uncaught TypeError: member.skills.map is not a function
+    at team.tsx:737:44
+    at Array.map (<anonymous>)
+    at TeamPage (team.tsx:686:28)
+chunk-WERSD76P.js?v=183d44d8:14032 The above error occurred in the <TeamPage> component:
+
+    at TeamPage (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit.dev/src/pages/team.tsx:90:21)
+    at Route (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=183d44d8:323:16)
+    at Switch (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=183d44d8:379:17)
+    at div
+    at main
+    at div
+    at div
+    at div
+    at Provider (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit…unner/workspace/node_modules/.vite/deps/chunk-AFJ6VPUJ.js?v=183d44d8:38:15)
+    at TooltipProvider (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit…rkspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=183d44d8:63:5)
+    at https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit.dev/src/components/ui/sidebar.tsx:54:7
+    at DashboardLayout (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit.dev/src/components/layout/dashboard-layout.tsx:27:3)
+    at ProtectedRoutes (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit.dev/src/App.tsx?v=f_BEWCax9BBxeMnsOerqJ:40:31)
+    at QueryClientProvider (https://c95bffbe-f614-4c70-9430-36ce70fa5676-00-1ado6gt3c7ia5.picard.replit…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=183d44d8:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+chunk-WERSD76P.js?v=183d44d8:9129 Uncaught TypeError: member.skills.map is not a function
+    at team.tsx:737:44
+    at Array.map (<anonymous>)
+    at TeamPage (team.tsx:686:28)
