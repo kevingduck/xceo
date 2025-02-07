@@ -17,7 +17,7 @@ const teamMemberSchema = z.object({
   department: z.string().optional(),
   email: z.string().email("Invalid email address"),
   startDate: z.string().transform((str) => new Date(str)),
-  skills: z.string(),
+  skills: z.array(z.string()).default([]),
   bio: z.string().optional(),
   salary: z.number().optional(),
 });
@@ -1028,7 +1028,7 @@ Culture & Values:
   app.get("/api/admin/analytics", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
-    }
+        }
     try {
       const allAnalytics = await db
         .select()
@@ -1044,7 +1044,7 @@ Culture & Values:
   app.get("/api/team-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
-        try {
+    try {
       const members = await db.query.teamMembers.findMany({
         where: eq(teamMembers.userId, req.user.id),
         orderBy: (members, { desc }) => [desc(members.createdAt)]
@@ -1058,40 +1058,48 @@ Culture & Values:
 
   app.post("/api/team-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const result = teamMemberSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
       }
 
-      const [member] = await db.insert(teamMembers)
+      // Ensure skills is an array
+      const skills = Array.isArray(result.data.skills) ? result.data.skills : [];
+
+      const [teamMember] = await db.insert(teamMembers)
         .values({
           ...result.data,
-          skills: result.data.skills.split(',').map(s => s.trim()),
-          userId: req.user.id
+          skills,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
-      res.json(member);
+
+      res.json(teamMember);
     } catch (error) {
       console.error("Error creating team member:", error);
-      res.status(500).send("Failed to create team member");
+      res.status(500).json({
+        message: "Failed to create team member",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
   app.patch("/api/team-members/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
-      const teamMemberId = parseInt(req.params.id);
-      if (isNaN(teamMemberId)) return res.status(400).send("Invalid team member ID");
+      const memberId = parseInt(req.params.id);
+      if (isNaN(memberId)) return res.status(400).send("Invalid member ID");
 
       const [existingMember] = await db
         .select()
         .from(teamMembers)
-        .where(eq(teamMembers.id, teamMemberId))
+        .where(eq(teamMembers.id, memberId))
         .limit(1);
 
       if (!existingMember) return res.status(404).send("Team member not found");
@@ -1099,21 +1107,34 @@ Culture & Values:
 
       const result = teamMemberSchema.partial().safeParse(req.body);
       if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
       }
+
+      // Ensure skills is an array if provided
+      const skills = result.data.skills ?
+        (Array.isArray(result.data.skills) ? result.data.skills : []) :
+        undefined;
 
       const [updatedMember] = await db
         .update(teamMembers)
-        .set({ ...result.data, updatedAt: new Date() })
-        .where(eq(teamMembers.id, teamMemberId))
+        .set({
+          ...result.data,
+          skills,
+          updatedAt: new Date()
+        })
+        .where(eq(teamMembers.id, memberId))
         .returning();
 
       res.json(updatedMember);
     } catch (error) {
       console.error("Error updating team member:", error);
-      res.status(500).send("Failed to update team member");
+      res.status(500).json({
+        message: "Failed to update team member",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1882,7 +1903,7 @@ Culture & Values:
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting offering:", error);
+      consoleerror("Error deleting offering:", error);
       res.status(500).send("Failed to delete offering");
     }
   });

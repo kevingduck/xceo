@@ -18,10 +18,22 @@ async function handleRequest(
   try {
     const response = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        // Ensure credentials are included in the request headers
+        "Accept": "application/json"
+      },
       body: body ? JSON.stringify(body) : undefined,
-      credentials: "include",
+      credentials: "include", // This is crucial for maintaining session cookies
     });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: response.statusText }));
+      return {
+        ok: false,
+        message: errorData.message || 'Request failed'
+      };
+    }
 
     const data = await response.json();
     return data;
@@ -34,20 +46,27 @@ async function handleRequest(
 }
 
 async function fetchUser(): Promise<SelectUser | null> {
-  const response = await fetch('/api/user', {
-    credentials: 'include'
-  });
+  try {
+    const response = await fetch('/api/user', {
+      credentials: 'include',
+      headers: {
+        "Accept": "application/json"
+      }
+    });
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      return null;
+    if (!response.ok) {
+      if (response.status === 401) {
+        return null;
+      }
+      const data = await response.json();
+      throw new Error(data.message || response.statusText);
     }
 
-    const data = await response.json();
-    throw new Error(data.message || response.statusText);
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
   }
-
-  return response.json();
 }
 
 export function useUser() {
@@ -56,7 +75,7 @@ export function useUser() {
   const { data: user, error, isLoading } = useQuery<SelectUser | null, Error>({
     queryKey: ['user'],
     queryFn: fetchUser,
-    staleTime: Infinity,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     retry: false
   });
 
@@ -77,6 +96,8 @@ export function useUser() {
         throw new Error(data.message);
       }
       queryClient.invalidateQueries({ queryKey: ['user'] });
+      // Clear all queries on logout
+      queryClient.clear();
     },
   });
 

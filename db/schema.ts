@@ -91,7 +91,7 @@ export const teamMembers = pgTable("team_members", {
   department: text("department"),
   email: text("email").notNull(),
   startDate: timestamp("start_date").notNull(),
-  skills: jsonb("skills").$type<string[]>(),
+  skills: jsonb("skills").$type<string[]>().default([]),
   bio: text("bio"),
   status: text("status").notNull().default("active"),
   salary: integer("salary"),
@@ -469,9 +469,9 @@ export const teamMemberSchema = z.object({
   department: z.string().optional(),
   email: z.string().email("Invalid email address"),
   startDate: z.string(),
-  skills: z.string().optional(),
+  skills: z.array(z.string()).default([]),
   bio: z.string().optional(),
-  salary: z.string().optional(),
+  salary: z.number().optional(),
 });
 
 export const positionSchema = z.object({
