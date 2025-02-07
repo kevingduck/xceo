@@ -151,6 +151,30 @@ export async function processAIMessage(
       orderBy: [desc(tasks.updatedAt)]
     });
 
+    // Fetch all business info sections
+    const businessSections = await db
+      .select()
+      .from(businessInfo)
+      .where(eq(businessInfo.userId, userId))
+      .orderBy(desc(businessInfo.updatedAt));
+
+    // Group sections by their type to get the latest version of each
+    const latestSections = businessSections.reduce((acc, curr) => {
+      if (!acc[curr.section] || new Date(acc[curr.section].updatedAt) < new Date(curr.updatedAt)) {
+        acc[curr.section] = curr;
+      }
+      return acc;
+    }, {} as Record<string, typeof businessSections[0]>);
+
+    // Format business data for context
+    const businessData = Object.values(latestSections)
+      .map(section => ({
+        section: section.section,
+        content: section.content,
+        fields: section.fields || {}
+      }))
+      .sort((a, b) => a.section.localeCompare(b.section));
+
     // Format tasks for context
     const tasksContext = userTasks.map(task => ({
       id: task.id,
@@ -160,12 +184,23 @@ export async function processAIMessage(
       updatedAt: task.updatedAt.toISOString()
     }));
 
-    // Create a more detailed context message
+    // Create a comprehensive context message
     const contextMessage = `You are an AI CEO assistant. ${
       businessContext 
         ? `You are helping manage ${businessContext.name}. The business description is: ${businessContext.description}. Key objectives: ${businessContext.objectives.join(", ")}.`
         : "You are helping manage a business."
     }
+
+Current Business Information:
+${businessData.map(section => `
+${section.section}:
+${section.content}
+
+Current Fields:
+${Object.entries(section.fields)
+  .map(([key, value]) => `- ${key}: ${JSON.stringify(value)}`)
+  .join('\n')}
+`).join('\n')}
 
 Current Tasks (${tasksContext.length}):
 ${tasksContext.map(task => 
@@ -178,7 +213,6 @@ You can:
 
 Remember to use the available commands when appropriate.`;
 
-    // Filter out empty messages and ensure proper role values
     const messages = [
       { role: "user" as const, content: contextMessage },
       ...(businessContext?.recentMessages
@@ -190,7 +224,6 @@ Remember to use the available commands when appropriate.`;
       { role: "user" as const, content }
     ];
 
-    // Call Anthropic API with enhanced context
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
@@ -223,12 +256,10 @@ Always provide a response to the user explaining what you're doing.`,
     let updatedField = null;
     let responseContent = '';
 
-    // Process the response content
     for (const content of response.content) {
       if (content.type === 'text') {
         let text = content.text;
 
-        // Extract and process create_task commands
         const createTaskMatches = text.match(/<create_task>([\s\S]*?)<\/create_task>/g);
         if (createTaskMatches) {
           for (const match of createTaskMatches) {
@@ -241,7 +272,6 @@ Always provide a response to the user explaining what you're doing.`,
                 args: parameters
               });
               console.log("Task created successfully:", createdTask);
-              // Remove the processed command from the text
               text = text.replace(match, '');
             } catch (error) {
               console.error("Error processing create_task command:", error);
@@ -250,7 +280,6 @@ Always provide a response to the user explaining what you're doing.`,
           }
         }
 
-        // Extract and process update_business_field commands
         const updateFieldMatches = text.match(/<update_business_field>([\s\S]*?)<\/update_business_field>/g);
         if (updateFieldMatches) {
           for (const match of updateFieldMatches) {
@@ -261,7 +290,6 @@ Always provide a response to the user explaining what you're doing.`,
                 name: 'update_business_field',
                 args: parameters
               });
-              // Remove the processed command from the text
               text = text.replace(match, '');
             } catch (error) {
               console.error("Error processing update_business_field command:", error);
@@ -274,7 +302,6 @@ Always provide a response to the user explaining what you're doing.`,
       }
     }
 
-    // Add information about created task or updated field to the response
     if (createdTask) {
       console.log("Adding created task to response:", createdTask);
       responseContent += `\n\nI've created a new task for you: "${createdTask.title}" with status "${createdTask.status}"`;
@@ -283,7 +310,6 @@ Always provide a response to the user explaining what you're doing.`,
       responseContent += `\n\nI've updated the ${updatedField.section} information.`;
     }
 
-    // Extract suggested actions
     const suggestedActions = extractSuggestedActions(responseContent, tasksContext);
 
     return {
