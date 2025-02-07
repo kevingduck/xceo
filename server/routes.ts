@@ -6,7 +6,7 @@ import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
   teamMembers, positions, candidates, taskSchema, updateTaskSchema
 } from "@db/schema";
-import { eq, inArray, desc, and } from "drizzle-orm";
+import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 
@@ -16,10 +16,10 @@ const teamMemberSchema = z.object({
   role: z.string().min(1, "Role is required"),
   department: z.string().optional(),
   email: z.string().email("Invalid email address"),
-  startDate: z.string(),
+  startDate: z.date(),
   skills: z.string(),
   bio: z.string().optional(),
-  salary: z.string().optional(),
+  salary: z.number().optional(),
 });
 const fieldSchema = z.object({
   value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
@@ -104,9 +104,9 @@ export function registerRoutes(app: Express): Server {
 
       const [updatedTask] = await db
         .update(tasks)
-        .set({ 
+        .set({
           ...result.data,
-          updatedAt: new Date() 
+          updatedAt: new Date()
         })
         .where(eq(tasks.id, taskId))
         .returning();
@@ -868,12 +868,13 @@ Culture & Values:
     }
   });
 
-  app.post("/api/chat", async (req, res, next) => {
+  app.post("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
     try {
       if (!req.body.content) {
         return res.status(400).send("Message content is required");
       }
+
       // First save the user's message
       const [userMessage] = await db.insert(chatMessages)
         .values({
@@ -903,7 +904,7 @@ Culture & Values:
         description: user.businessDescription || '',
         objectives: user.businessObjectives || [],
         recentMessages: recentMessages
-          .filter(msg => msg.id !== userMessage.id) // Exclude current message
+          .filter(msg => msg.id !== userMessage.id)
           .reverse()
           .map(msg => ({
             role: msg.role,
@@ -931,28 +932,13 @@ Culture & Values:
         })
         .returning();
 
-      // If summarization is needed and we have enough messages
-      const shouldSummarize = req.body.metadata?.shouldSummarize;
-      if (shouldSummarize) {
-        const [lastSummary] = await db
-          .select()
-          .from(conversationSummaries)
-          .where(eq(conversationSummaries.userId, req.user.id))
-          .orderBy(desc(conversationSummaries.createdAt))
-          .limit(1);
-
-        const summaryStartId = lastSummary?.messageRange.lastMessageId || 0;
-        await summarizeAndStoreConversation(
-          req.user.id,
-          summaryStartId,
-          savedResponse.id
-        );
-      }
-
       res.json(savedResponse);
     } catch (error) {
       console.error("Chat error:", error);
-      next(error);
+      res.status(500).json({
+        error: "Failed to process chat message",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1045,7 +1031,7 @@ Culture & Values:
   app.get("/api/team-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
-    try {
+        try {
       const members = await db.query.teamMembers.findMany({
         where: eq(teamMembers.userId, req.user.id),
         orderBy: (members, { desc }) => [desc(members.createdAt)]
@@ -2014,191 +2000,6 @@ Culture & Values:
     } catch (error) {
       console.error("Error creating roadmap item:", error);
       res.status(500).send("Failed to create roadmap item");
-    }
-  });
-
-  // Pricing Tiers API
-  app.get("/api/pricing-tiers", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const tiers = await db.query.pricingTiers.findMany({
-        where: eq(pricingTiers.userId, req.user.id),
-        with: {
-          features: true
-        }
-      });
-      res.json(tiers);
-    } catch (error) {
-      console.error("Error fetching pricing tiers:", error);
-      res.status(500).send("Failed to fetch pricing tiers");
-    }
-  });
-
-  app.post("/api/pricing-tiers", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const result = pricingTierSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
-      }
-
-      // Verify offering exists and belongs to user
-      const [offering] = await db
-        .select()
-        .from(offerings)
-        .where(eq(offerings.id, req.body.offeringId))
-        .limit(1);
-
-      if (!offering) return res.status(404).send("Offering not found");
-      if (offering.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      const [tier] = await db.insert(pricingTiers)
-        .values({
-          ...result.data,
-          userId: req.user.id,
-          offeringId: offering.id
-        })
-        .returning();
-
-      res.json(tier);
-    } catch (error) {
-      console.error("Error creating pricing tier:", error);
-      res.status(500).send("Failed to create pricing tier");
-    }
-  });
-
-  app.patch("/api/pricing-tiers/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const tierId = parseInt(req.params.id);
-      if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-
-      const [existingTier] = await db
-        .select()
-        .from(pricingTiers)
-        .where(eq(pricingTiers.id, tierId))
-        .limit(1);
-
-      if (!existingTier) return res.status(404).send("Pricing tier not found");
-      if (existingTier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      const result = pricingTierSchema.partial().safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
-      }
-
-      const [updatedTier] = await db
-        .update(pricingTiers)
-        .set({
-          ...result.data,
-          updatedAt: new Date()
-        })
-        .where(eq(pricingTiers.id, tierId))
-        .returning();
-
-      res.json(updatedTier);
-    } catch (error) {
-      console.error("Error updating pricing tier:", error);
-      res.status(500).send("Failed to update pricing tier");
-    }
-  });
-
-  app.delete("/api/pricing-tiers/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    try {
-      const tierId = parseInt(req.params.id);
-      if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-
-      const [existingTier] = await db
-        .select()
-        .from(pricingTiers)
-        .where(eq(pricingTiers.id, tierId))
-        .limit(1);
-
-      if (!existingTier) return res.status(404).send("Pricing tier not found");
-      if (existingTier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      // First delete associated features
-      await db.delete(pricingFeatures).where(eq(pricingFeatures.tierId, tierId));
-      // Then delete the tier
-      await db.delete(pricingTiers).where(eq(pricingTiers.id, tierId));
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting pricing tier:", error);
-      res.status(500).send("Failed to delete pricing tier");
-    }
-  });
-
-  // Pricing Features API
-  app.get("/api/pricing-tiers/:tierId/features", async (req, res) => {
-    if (!req.isAuthenticated) return res.status(401).send("Not authenticated");
-
-    try {
-      const tierId = parseInt(req.params.tierId);
-      if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-
-      const [tier] = await db
-        .select()
-        .from(pricingTiers)
-        .where(eq(pricingTiers.id, tierId))
-        .limit(1);
-
-      if (!tier) return res.status(404).send("Pricing tier not found");
-      if (tier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      const features = await db.query.pricingFeatures.findMany({
-        where: eq(pricingFeatures.tierId, tierId),
-        orderBy: (features, { asc }) => [asc(features.sortOrder)]
-      });
-      res.json(features);
-    } catch (error) {
-      console.error("Error fetching pricing features:", error);
-      res.status(500).send("Failed to fetch pricing features");
-    }
-  });
-
-  app.post("/api/pricing-tiers/:tierId/features", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
-    try {
-      const tierId = parseInt(req.params.tierId);
-      if (isNaN(tierId)) return res.status(400).send("Invalid pricing tier ID");
-
-      const [tier] = await db
-        .select()
-        .from(pricingTiers)
-        .where(eq(pricingTiers.id, tierId))
-        .limit(1);
-
-      if (!tier) return res.status(404).send("Pricing tier not found");
-      if (tier.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      const result = pricingFeatureSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).send(
-          "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        );
-      }
-
-      const [feature] = await db.insert(pricingFeatures)
-        .values({
-          ...result.data,
-          tierId
-        })
-        .returning();
-
-      res.json(feature);
-    } catch (error) {
-      console.error("Error creating pricing feature:", error);
-      res.status(500).send("Failed to create pricing feature");
     }
   });
 
