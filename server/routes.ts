@@ -16,7 +16,7 @@ const teamMemberSchema = z.object({
   role: z.string().min(1, "Role is required"),
   department: z.string().optional(),
   email: z.string().email("Invalid email address"),
-  startDate: z.date(),
+  startDate: z.string().transform((str) => new Date(str)),
   skills: z.string(),
   bio: z.string().optional(),
   salary: z.number().optional(),
