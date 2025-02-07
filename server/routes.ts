@@ -21,6 +21,19 @@ const teamMemberSchema = z.object({
   bio: z.string().optional(),
   salary: z.number().optional(),
 });
+
+const candidateSchema = z.object({
+  positionId: z.number(),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  resumeUrl: z.string().url("Must be a valid URL").optional(),
+  skills: z.string(),
+  experienceYears: z.string(),
+  highlights: z.string(),
+  notes: z.string().optional(),
+  rating: z.string().optional(),
+});
 const fieldSchema = z.object({
   value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
   type: z.enum(['text', 'number', 'currency', 'percentage', 'date', 'list']),
