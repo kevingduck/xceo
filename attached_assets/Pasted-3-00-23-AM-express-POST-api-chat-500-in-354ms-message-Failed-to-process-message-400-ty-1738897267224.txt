@@ -1,0 +1,48 @@
+3:00:23 AM [express] POST /api/chat 500 in 354ms :: {"message":"Failed to process message: 400 {\"ty…
+Error processing AI message: BadRequestError: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"}}
+    at Function.generate (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/error.ts:63:14)
+    at Anthropic.makeStatusError (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:434:21)
+    at Anthropic.makeRequest (/home/runner/workspace/node_modules/@anthropic-ai/sdk/src/core.ts:498:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async processAIMessage (/home/runner/workspace/server/services/ai.ts:194:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:905:26) {
+  status: 400,
+  headers: {
+    'cf-cache-status': 'DYNAMIC',
+    'cf-ray': '90e02174c98dcef8-ORD',
+    connection: 'keep-alive',
+    'content-length': '209',
+    'content-type': 'application/json',
+    date: 'Fri, 07 Feb 2025 03:00:37 GMT',
+    'request-id': 'req_01UY2XwDEFu1MMw8N88g7gTu',
+    server: 'cloudflare',
+    via: '1.1 google',
+    'x-robots-tag': 'none',
+    'x-should-retry': 'false'
+  },
+  request_id: 'req_01UY2XwDEFu1MMw8N88g7gTu',
+  error: {
+    type: 'error',
+    error: {
+      type: 'invalid_request_error',
+      message: "tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"
+    }
+  }
+}
+Chat error: Error: Failed to process message: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"}}
+    at processAIMessage (/home/runner/workspace/server/services/ai.ts:314:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:905:26)
+Application error: {
+  status: 500,
+  message: `Failed to process message: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"}}`,
+  stack: `Error: Failed to process message: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"}}\n` +
+    '    at processAIMessage (/home/runner/workspace/server/services/ai.ts:314:11)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n' +
+    '    at async <anonymous> (/home/runner/workspace/server/routes.ts:905:26)',
+  originalError: Error: Failed to process message: 400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0: Input tag 'function' found using 'type' does not match any of the expected tags: 'bash_20250124', 'custom', 'text_editor_20250124'"}}
+      at processAIMessage (/home/runner/workspace/server/services/ai.ts:314:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/server/routes.ts:905:26)
+}
+3:00:37 AM [express] POST /api/chat 500 in 344ms :: {"message":"Failed to process message: 400 {\"ty…

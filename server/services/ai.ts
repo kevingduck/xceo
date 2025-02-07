@@ -173,10 +173,10 @@ ${tasksContext.map(task =>
 ).join("\n")}
 
 You can:
-1. Create new tasks using the create_task function
-2. Update business information using the update_business_field function
+1. Create new tasks using the create_task command
+2. Update business information using the update_business_field command
 
-Remember to use the available tools when appropriate.`;
+Remember to use the available commands when appropriate.`;
 
     // Filter out empty messages and ensure proper role values
     const messages = [
@@ -195,101 +195,82 @@ Remember to use the available tools when appropriate.`;
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       messages,
-      system: `You are a business management AI assistant. When a user requests task creation or business updates, always use the appropriate tool function rather than just describing what should be done. Be proactive in using the tools provided.`,
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "create_task",
-            description: "Create a new task in the system",
-            parameters: {
-              type: "object",
-              properties: {
-                title: {
-                  type: "string",
-                  description: "The title of the task"
-                },
-                description: {
-                  type: "string",
-                  description: "Optional detailed description of the task"
-                },
-                status: {
-                  type: "string",
-                  enum: ["todo", "in_progress", "done"],
-                  description: "The status of the task, defaults to todo if not specified"
-                }
-              },
-              required: ["title"]
-            }
-          }
-        },
-        {
-          type: "function",
-          function: {
-            name: "update_business_field",
-            description: "Update a specific field in a business section",
-            parameters: {
-              type: "object",
-              properties: {
-                section: {
-                  type: "string",
-                  description: "The section name (e.g., 'Business Overview', 'Financial Overview')"
-                },
-                field: {
-                  type: "string",
-                  description: "The field name to update"
-                },
-                value: {
-                  oneOf: [
-                    { type: "string" },
-                    { type: "number" },
-                    { type: "array", items: { type: "string" } }
-                  ],
-                  description: "The new value for the field"
-                },
-                type: {
-                  type: "string",
-                  enum: ["text", "number", "currency", "percentage", "date", "list"],
-                  description: "The type of the field"
-                }
-              },
-              required: ["section", "field", "value", "type"]
-            }
-          }
-        }
-      ]
+      system: `You are a business management AI assistant. When a user requests task creation or business updates, use the appropriate commands to execute them. Format your commands like this:
+
+For creating tasks:
+<create_task>
+{
+  "title": "Task title here",
+  "description": "Optional task description",
+  "status": "todo"
+}
+</create_task>
+
+For updating business fields:
+<update_business_field>
+{
+  "section": "Section name",
+  "field": "Field name",
+  "value": "New value",
+  "type": "text"
+}
+</update_business_field>
+
+Always provide a response to the user explaining what you're doing.`,
     });
 
     let createdTask = null;
     let updatedField = null;
     let responseContent = '';
 
-    // Process text content and tool calls
+    // Process the response content
     for (const content of response.content) {
       if (content.type === 'text') {
-        responseContent += content.text;
-      } else if (content.type === 'tool_call') {
-        console.log("Processing tool call:", content);
-        const { tool_name, parameters } = content;
+        let text = content.text;
 
-        try {
-          if (tool_name === 'create_task') {
-            console.log("Executing create_task with parameters:", parameters);
-            createdTask = await executeTaskFunction(userId, {
-              name: 'create_task',
-              args: parameters
-            });
-            console.log("Task created successfully:", createdTask);
-          } else if (tool_name === 'update_business_field') {
-            updatedField = await executeBusinessFieldUpdate(userId, {
-              name: 'update_business_field',
-              args: parameters
-            });
+        // Extract and process create_task commands
+        const createTaskMatches = text.match(/<create_task>([\s\S]*?)<\/create_task>/g);
+        if (createTaskMatches) {
+          for (const match of createTaskMatches) {
+            try {
+              const jsonStr = match.replace(/<create_task>|<\/create_task>/g, '').trim();
+              const parameters = JSON.parse(jsonStr);
+              console.log("Executing create_task with parameters:", parameters);
+              createdTask = await executeTaskFunction(userId, {
+                name: 'create_task',
+                args: parameters
+              });
+              console.log("Task created successfully:", createdTask);
+              // Remove the processed command from the text
+              text = text.replace(match, '');
+            } catch (error) {
+              console.error("Error processing create_task command:", error);
+              text += `\n\nI encountered an error while trying to create the task: ${error instanceof Error ? error.message : "Unknown error"}`;
+            }
           }
-        } catch (error) {
-          console.error(`Error executing ${tool_name}:`, error);
-          responseContent += `\n\nI encountered an error while trying to ${tool_name === 'create_task' ? 'create the task' : 'update the business field'}: ${error.message}`;
         }
+
+        // Extract and process update_business_field commands
+        const updateFieldMatches = text.match(/<update_business_field>([\s\S]*?)<\/update_business_field>/g);
+        if (updateFieldMatches) {
+          for (const match of updateFieldMatches) {
+            try {
+              const jsonStr = match.replace(/<update_business_field>|<\/update_business_field>/g, '').trim();
+              const parameters = JSON.parse(jsonStr);
+              updatedField = await executeBusinessFieldUpdate(userId, {
+                name: 'update_business_field',
+                args: parameters
+              });
+              // Remove the processed command from the text
+              text = text.replace(match, '');
+            } catch (error) {
+              console.error("Error processing update_business_field command:", error);
+              text += `\n\nI encountered an error while trying to update the business field: ${error instanceof Error ? error.message : "Unknown error"}`;
+            }
+          }
+        }
+
+        responseContent += text;
       }
     }
 
