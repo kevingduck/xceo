@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@db';
-import { tasks, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries, chatMessages } from '@db/schema';
+import { tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory, teamMembers, positions, candidates, conversationSummaries } from '@db/schema';
 import { eq, desc, and, gt } from 'drizzle-orm';
 
 const anthropic = new Anthropic({
@@ -129,18 +129,27 @@ export async function processAIMessage(
   }
 ) {
   try {
-    // Fetch user's tasks and business info
+    // Fetch user's tasks
     const userTasks = await db.query.tasks.findMany({
       where: eq(tasks.userId, userId),
       orderBy: [desc(tasks.updatedAt)]
     });
 
+    // Fetch latest business info for each section
     const businessSections = await db.query.businessInfo.findMany({
       where: eq(businessInfo.userId, userId),
       orderBy: [desc(businessInfo.updatedAt)]
     });
 
-    // Format tasks for AI context
+    // Group by section to get latest entries
+    const latestSectionMap = businessSections.reduce((acc, curr) => {
+      if (!acc[curr.section] || new Date(acc[curr.section].updatedAt) < new Date(curr.updatedAt)) {
+        acc[curr.section] = curr;
+      }
+      return acc;
+    }, {} as Record<string, typeof businessSections[0]>);
+
+    // Format tasks for context
     const tasksContext = userTasks.map(task => ({
       id: task.id,
       title: task.title,
@@ -149,32 +158,44 @@ export async function processAIMessage(
       updatedAt: task.updatedAt.toISOString()
     }));
 
-    // Format business info for context
-    const businessInfoContext = businessSections.reduce((acc, section) => {
-      acc[section.section] = {
-        fields: section.fields || {},
-        content: section.content
+    // Create a detailed business context message
+    const businessInfoContext = Object.entries(latestSectionMap).reduce((acc, [section, data]) => {
+      const fields = data.fields || {};
+      acc[section] = {
+        content: data.content,
+        fields: Object.entries(fields).map(([key, value]) => ({
+          name: key,
+          value: value.value,
+          type: value.type,
+          updatedAt: value.updatedAt
+        }))
       };
       return acc;
     }, {} as Record<string, any>);
 
-    // Create context message
+    // Create a more detailed context message
     const contextMessage = `You are an AI CEO assistant. ${
       businessContext 
         ? `You are helping manage ${businessContext.name}. The business description is: ${businessContext.description}. Key objectives: ${businessContext.objectives.join(", ")}.`
         : "You are helping manage a business."
     }
 
-Current tasks (${tasksContext.length}):
-${tasksContext.map(task => `- ${task.title} (${task.status})`).join("\n")}
-
 Business Information:
 ${Object.entries(businessInfoContext).map(([section, data]) => `
 ${section}:
-${Object.entries(data.fields).map(([field, value]: [string, any]) => 
-  `- ${field}: ${value.value} (${value.type})`
-).join("\n")}`).join("\n")}
+${data.content}
 
+Current Fields:
+${data.fields.map((field: any) => 
+  `- ${field.name}: ${field.value} (${field.type})`
+).join("\n")}`).join("\n\n")}
+
+Current Tasks (${tasksContext.length}):
+${tasksContext.map(task => 
+  `- ${task.title} (${task.status})${task.description ? `\n  Description: ${task.description}` : ''}`
+).join("\n")}
+
+You have full access to all business information shown above. Use this information to provide accurate and contextual responses.
 You can:
 1. Discuss and provide insights about tasks and business information
 2. Suggest task status updates
@@ -186,7 +207,8 @@ When appropriate, you can:
 - Create tasks using the create_task function
 - Update business fields using the update_business_field function
 
-Respond naturally while keeping this context in mind.`;
+Always refer to the actual business data when answering questions about the business.
+`;
 
     // Filter out empty messages and ensure proper role values
     const messages = [
@@ -194,18 +216,18 @@ Respond naturally while keeping this context in mind.`;
       ...(businessContext?.recentMessages
         ?.filter(msg => msg.content?.trim())
         ?.map(msg => ({
-          role: msg.role === "assistant" ? "assistant" : "user",
+          role: msg.role === "assistant" ? "assistant" as const : "user" as const,
           content: msg.content
         })) || []),
       { role: "user" as const, content }
     ];
 
-    // Call Anthropic API
+    // Call Anthropic API with enhanced context
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       messages,
-      system: `You are a business management AI assistant that can help create and manage tasks, and update business information. When updating business fields, ensure the values match the field type (text, number, currency, percentage, date, or list). Always use the appropriate function to make changes.`,
+      system: `You are a business management AI assistant with access to the company's business information and tasks. When discussing business details, always refer to the actual data provided in the context. Be specific when mentioning business information and ensure accuracy in your responses.`,
       tools: [
         {
           name: "create_task",
@@ -298,7 +320,7 @@ Respond naturally while keeping this context in mind.`;
       }
     }
 
-    // Extract suggested actions based on AI response
+    // Extract suggested actions
     const suggestedActions = extractSuggestedActions(aiContent, tasksContext, businessInfoContext);
 
     let responseContent = aiContent;
