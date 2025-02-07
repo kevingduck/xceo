@@ -40,21 +40,36 @@ type UpdateBusinessFieldCall = {
 
 async function executeTaskFunction(userId: number, functionCall: TaskFunctionCall) {
   try {
-    const { args } = functionCall;
+    console.log("Creating task with data:", functionCall.args);
+
+    // Validate required fields
+    if (!functionCall.args.title) {
+      throw new Error("Task title is required");
+    }
+
+    // Ensure status is one of the valid options
+    const validStatus = ["todo", "in_progress", "done"];
+    const status = functionCall.args.status && validStatus.includes(functionCall.args.status) 
+      ? functionCall.args.status 
+      : "todo";
+
     const [task] = await db.insert(tasks)
       .values({
         userId,
-        title: args.title,
-        description: args.description || '',
-        status: args.status || 'todo',
+        title: functionCall.args.title.trim(),
+        description: functionCall.args.description?.trim() || '',
+        status,
         createdAt: new Date(),
         updatedAt: new Date()
       })
       .returning();
+
+    console.log("Successfully created task:", task);
     return task;
   } catch (error) {
     console.error("Error executing task function:", error);
-    throw new Error("Failed to create task");
+    console.error("Function call data:", JSON.stringify(functionCall, null, 2));
+    throw new Error("Failed to create task: " + (error instanceof Error ? error.message : "Unknown error"));
   }
 }
 
@@ -179,7 +194,6 @@ export async function processAIMessage(
         ? `You are helping manage ${businessContext.name}. The business description is: ${businessContext.description}. Key objectives: ${businessContext.objectives.join(", ")}.`
         : "You are helping manage a business."
     }
-
 Business Information:
 ${Object.entries(businessInfoContext).map(([section, data]) => `
 ${section}:
@@ -304,9 +318,13 @@ Always refer to the actual business data when answering questions about the busi
             const { name, arguments: args } = toolCall.function;
             if (name === 'create_task') {
               try {
-                createdTask = await executeTaskFunction(userId, { name, args: JSON.parse(args) });
+                console.log("Processing create_task tool call");
+                const parsedArgs = JSON.parse(args);
+                createdTask = await executeTaskFunction(userId, { name, args: parsedArgs });
+                console.log("Task created successfully:", createdTask);
               } catch (error) {
                 console.error("Error processing task tool call:", error);
+                throw new Error("Failed to create task: " + (error instanceof Error ? error.message : "Unknown error"));
               }
             } else if (name === 'update_business_field') {
               try {
@@ -325,7 +343,8 @@ Always refer to the actual business data when answering questions about the busi
 
     let responseContent = aiContent;
     if (createdTask) {
-      responseContent += `\n\nI've created a new task: "${createdTask.title}"`;
+      console.log("Adding created task to response:", createdTask);
+      responseContent += `\n\nI've created a new task for you: "${createdTask.title}" with status "${createdTask.status}"`;
     }
     if (updatedField) {
       responseContent += `\n\nI've updated the ${updatedField.section} information.`;
