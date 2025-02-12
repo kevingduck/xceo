@@ -9,6 +9,7 @@ import {
 import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
+import { analyzeFeedback } from "./services/feedback-analysis";
 
 // Schema definitions
 const teamMemberSchema = z.object({
@@ -1025,10 +1026,10 @@ Culture & Values:
     }
   });
 
-  app.get("/api/admin/analytics", async (req, res) => {
+  app.get("/api/admin/analytics", async (req, res) =>{
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
-        }
+    }
     try {
       const allAnalytics = await db
         .select()
@@ -1879,22 +1880,17 @@ Culture & Values:
   });
 
   app.delete("/api/offerings/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
 
     try {
       const offeringId = parseInt(req.params.id);
-      if (isNaN(offeringId)) return res.status(400).send("Invalid offering ID");
+      if (isNaN(offeringId)) {
+        return res.status(400).send("Invalid offering ID");
+      }
 
-      const [existingOffering] = await db
-        .select()
-        .from(offerings)
-        .where(eq(offerings.id, offeringId))
-        .limit(1);
-
-      if (!existingOffering) return res.status(404).send("Offering not found");
-      if (existingOffering.userId !== req.user.id) return res.status(403).send("Unauthorized");
-
-      // First delete related features and roadmap items
+      // Delete related records first
       await db.delete(offeringFeatures).where(eq(offeringFeatures.offeringId, offeringId));
       await db.delete(roadmapItems).where(eq(roadmapItems.offeringId, offeringId));
 
@@ -1903,13 +1899,13 @@ Culture & Values:
 
       res.json({ success: true });
     } catch (error) {
-      consoleerror("Error deleting offering:", error);
+      console.error("Error deleting offering:", error);
       res.status(500).send("Failed to delete offering");
     }
   });
 
   // Features API
-  app.get("/api/offerings/:id/features", async (req, res) => {
+  app.get("/api/offerings/:id/features", async (reqres) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {
@@ -1927,12 +1923,14 @@ Culture & Values:
 
       const features = await db.query.offeringFeatures.findMany({
         where: eq(offeringFeatures.offeringId, offeringId),
-        orderBy: (features, { desc }) => [desc(features.createdAt)]      });
+        orderBy: (features, { desc }) => [desc(features.createdAt)]
+      });
 
       res.json(features);
     } catch (error) {
       console.error("Error fetching features:", error);
-      res.status(500).send("Failed to fetch features");    }
+      res.status(500).send("Failed to fetch features");
+    }
   });
 
   app.post("/api/offerings/:id/features", async (req, res) => {
@@ -2240,6 +2238,32 @@ Culture & Values:
     } catch (error) {
       console.error("Error removing offering from package:", error);
       res.status(500).send("Failed to remove offering from package");
+    }
+  });
+
+  // Feedback Analysis API
+  app.post("/api/analyze-feedback", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { feedback } = req.body;
+      if (!feedback || typeof feedback !== "string") {
+        return res.status(400).json({
+          error: "Invalid input",
+          message: "Feedback text is required"
+        });
+      }
+
+      const suggestions = await analyzeFeedback(feedback);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error analyzing feedback:", error);
+      res.status(500).json({
+        error: "Failed to analyze feedback",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
