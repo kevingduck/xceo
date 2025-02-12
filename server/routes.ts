@@ -11,6 +11,18 @@ import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 import { analyzeFeedback } from "./services/feedback-analysis";
 
+const offeringSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"), 
+  type: z.enum(["product", "service"]),
+  status: z.enum(["active", "discontinued", "planned"]).default("active"),
+  price: z.object({
+    amount: z.number().min(0, "Price must be positive"),
+    currency: z.string().default("USD"),
+    billingCycle: z.string().optional(),
+  }).optional()
+});
+
 // Schema definitions
 const teamMemberSchema = z.object({
   name: z.string().min(1, "Name is required"),
