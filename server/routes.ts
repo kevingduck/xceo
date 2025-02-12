@@ -990,6 +990,41 @@ Culture & Values:
     }
   });
 
+  // Create task from suggestion endpoint
+  app.post("/api/tasks/from-suggestion", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { title, description } = req.body;
+      if (!title) {
+        return res.status(400).json({
+          message: "Task title is required"
+        });
+      }
+
+      const [task] = await db.insert(tasks)
+        .values({
+          userId: req.user.id,
+          title: title.trim(),
+          description: description?.trim() || '',
+          status: 'todo',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error creating task from suggestion:", error);
+      res.status(500).json({
+        message: "Failed to create task",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -1909,7 +1944,7 @@ Culture & Values:
     }
 
     try {
-      const offeringId = parseInt(req.paramsid);
+      const offeringId = parseInt(req.params.id);
       if (isNaN(offeringId)) {
         return res.status(400).send("Invalid offering ID");
       }
@@ -1929,7 +1964,7 @@ Culture & Values:
   });
 
   // Features API
-  app.get("/api/offerings/:id/features", async (reqres) => {
+  app.get("/api/offerings/:id/features", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {

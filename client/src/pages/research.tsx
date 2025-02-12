@@ -12,7 +12,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, BarChart2, ListTodo } from "lucide-react";
+import { Upload, FileText, BarChart2, ListTodo, Loader2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 
 type FeatureSuggestion = {
@@ -28,6 +28,7 @@ export default function ResearchPage() {
   const [textInput, setTextInput] = useState("");
   const { toast } = useToast();
   const [suggestions, setSuggestions] = useState<FeatureSuggestion[]>([]);
+  const [creatingTaskId, setCreatingTaskId] = useState<number | null>(null);
 
   const analyzeMutation = useMutation({
     mutationFn: async (feedback: string) => {
@@ -59,6 +60,40 @@ export default function ResearchPage() {
     },
   });
 
+  const createTaskMutation = useMutation({
+    mutationFn: async (suggestion: FeatureSuggestion) => {
+      const response = await fetch("/api/tasks/from-suggestion", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: suggestion.title,
+          description: `${suggestion.description}\n\nImpact: ${suggestion.impact}\nTimeline: ${suggestion.timeline}\nConfidence: ${suggestion.confidence}%\n\nSupporting Evidence:\n${suggestion.supportingEvidence.map(e => `- ${e}`).join('\n')}`
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create task");
+      }
+      return response.json();
+    },
+    onSuccess: (_, suggestion) => {
+      toast({
+        title: "Task Created",
+        description: `Created task: ${suggestion.title}`,
+      });
+      setCreatingTaskId(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to Create Task",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      });
+      setCreatingTaskId(null);
+    },
+  });
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     // TODO: Implement file processing
     toast({
@@ -78,6 +113,11 @@ export default function ResearchPage() {
     }
 
     analyzeMutation.mutate(textInput);
+  };
+
+  const handleCreateTask = async (suggestion: FeatureSuggestion, index: number) => {
+    setCreatingTaskId(index);
+    await createTaskMutation.mutate(suggestion);
   };
 
   return (
@@ -121,7 +161,10 @@ export default function ResearchPage() {
             disabled={analyzeMutation.isPending}
           >
             {analyzeMutation.isPending ? (
-              <>Analyzing...</>
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
             ) : (
               <>Analyze Feedback</>
             )}
@@ -169,9 +212,21 @@ export default function ResearchPage() {
                   <TableCell>{suggestion.impact}</TableCell>
                   <TableCell>{suggestion.timeline}</TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm">
-                      <ListTodo className="w-4 h-4 mr-2" />
-                      Create Task
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCreateTask(suggestion, index)}
+                      disabled={createTaskMutation.isPending && creatingTaskId === index}
+                    >
+                      {createTaskMutation.isPending && creatingTaskId === index ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <ListTodo className="w-4 h-4 mr-2" />
+                      )}
+                      {createTaskMutation.isPending && creatingTaskId === index
+                        ? "Creating..."
+                        : "Create Task"
+                      }
                     </Button>
                   </TableCell>
                 </TableRow>
