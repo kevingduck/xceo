@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Loader2, CheckCircle2, Circle, ArrowRight } from "lucide-react";
 import type { Task, Analytics, BusinessInfo } from "@db/schema";
 import { Badge } from "@/components/ui/badge";
@@ -45,30 +44,49 @@ export default function Dashboard() {
     .filter(task => task.status === "in_progress")
     .slice(0, 3);
 
-  const activityData = analytics
-    .filter(a => a.type === 'activity')
-    .map(a => ({
-      date: new Date(a.createdAt).toLocaleDateString(),
-      value: (a.data as any).value
-    }))
-    .slice(-7);
-
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card className="col-span-full">
         <CardHeader>
-          <CardTitle>Activity Overview</CardTitle>
-          <CardDescription>Recent updates and progress across your business</CardDescription>
+          <CardTitle>Next Steps</CardTitle>
+          <CardDescription>Upcoming and in-progress tasks</CardDescription>
         </CardHeader>
-        <CardContent className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={activityData}>
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#3b82f6" />
-            </LineChart>
-          </ResponsiveContainer>
+        <CardContent>
+          <div className="space-y-6">
+            {upcomingTasks.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Circle className="h-4 w-4" />
+                  To Do
+                </h4>
+                <div className="grid gap-2">
+                  {upcomingTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-2 text-sm">
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <span>{task.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {inProgressTasks.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  In Progress
+                </h4>
+                <div className="grid gap-2">
+                  {inProgressTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-2 text-sm">
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <span>{task.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -119,50 +137,6 @@ export default function Dashboard() {
               <span>Completed</span>
               <span className="font-bold">{tasksByStatus.completed || 0}</span>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="col-span-full lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Next Steps</CardTitle>
-          <CardDescription>Upcoming and in-progress tasks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {upcomingTasks.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium flex items-center gap-2">
-                  <Circle className="h-4 w-4" />
-                  To Do
-                </h4>
-                <div className="grid gap-2">
-                  {upcomingTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-2 text-sm">
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      <span>{task.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {inProgressTasks.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  In Progress
-                </h4>
-                <div className="grid gap-2">
-                  {inProgressTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-2 text-sm">
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                      <span>{task.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
