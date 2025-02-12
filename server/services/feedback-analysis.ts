@@ -32,9 +32,9 @@ Format your response as a JSON array of feature suggestions.`;
 
 export async function analyzeFeedback(feedback: string): Promise<FeatureSuggestion[]> {
   try {
-    // Send feedback to Claude for analysis
+    // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
     const completion = await anthropic.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       temperature: 0.5,
       system: SYSTEM_PROMPT,
@@ -44,8 +44,13 @@ export async function analyzeFeedback(feedback: string): Promise<FeatureSuggesti
       }]
     });
 
+    const content = completion.content[0];
+    if (content.type !== 'text') {
+      throw new Error("Unexpected response type from Claude");
+    }
+
     // Extract JSON from Claude's response
-    const jsonMatch = completion.content[0].text.match(/\{|\[.*\}|\]/s);
+    const jsonMatch = content.text.match(/\{|\[.*\}|\]/s);
     if (!jsonMatch) {
       throw new Error("Could not extract JSON from Claude's response");
     }

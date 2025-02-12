@@ -965,6 +965,31 @@ Culture & Values:
     res.json(userAnalytics);
   });
 
+  // Feedback Analysis endpoint
+  app.post("/api/analyze-feedback", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const { feedback } = req.body;
+      if (!feedback || typeof feedback !== 'string') {
+        return res.status(400).json({
+          message: "Invalid input: feedback must be a non-empty string"
+        });
+      }
+
+      const suggestions = await analyzeFeedback(feedback);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error in feedback analysis:", error);
+      res.status(500).json({
+        message: "Failed to analyze feedback",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -1005,8 +1030,7 @@ Culture & Values:
         .select()
         .from(tasks);
       res.json(allTasks);
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
+    } catch (error) {      console.error("Error fetching tasks:", error);
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
@@ -1885,7 +1909,7 @@ Culture & Values:
     }
 
     try {
-      const offeringId = parseInt(req.params.id);
+      const offeringId = parseInt(req.paramsid);
       if (isNaN(offeringId)) {
         return res.status(400).send("Invalid offering ID");
       }
