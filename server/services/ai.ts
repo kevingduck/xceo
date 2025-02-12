@@ -48,17 +48,24 @@ async function executeTaskFunction(userId: number, functionCall: TaskFunctionCal
       throw new Error("Task title is required");
     }
 
+    // Clean and sanitize the input
+    const title = functionCall.args.title.trim();
+    const description = functionCall.args.description 
+      ? functionCall.args.description.replace(/[\u0000-\u001F]+/g, '\n').trim()
+      : '';
+
     // Ensure status is one of the valid options
     const validStatus = ["todo", "in_progress", "done"];
     const status = functionCall.args.status && validStatus.includes(functionCall.args.status) 
       ? functionCall.args.status 
       : "todo";
 
+    // Create the task
     const [task] = await db.insert(tasks)
       .values({
         userId,
-        title: functionCall.args.title.trim(),
-        description: functionCall.args.description?.trim() || '',
+        title,
+        description,
         status,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -70,7 +77,13 @@ async function executeTaskFunction(userId: number, functionCall: TaskFunctionCal
   } catch (error) {
     console.error("Error executing task function:", error);
     console.error("Function call data:", JSON.stringify(functionCall, null, 2));
-    throw new Error("Failed to create task: " + (error instanceof Error ? error.message : "Unknown error"));
+
+    // Provide a more descriptive error message
+    const errorMessage = error instanceof Error 
+      ? `Failed to create task: ${error.message}. Please ensure the task description doesn't contain invalid characters.`
+      : "Unknown error occurred while creating the task";
+
+    throw new Error(errorMessage);
   }
 }
 
@@ -233,8 +246,8 @@ Remember to use the available commands when appropriate.`;
 For creating tasks:
 <create_task>
 {
-  "title": "Task title here",
-  "description": "Optional task description",
+  "title": "Simple task title without special characters",
+  "description": "Task description with proper line breaks.\\nUse \\n for new lines.\\nKeep formatting simple.",
   "status": "todo"
 }
 </create_task>
@@ -248,6 +261,12 @@ For updating business fields:
   "type": "text"
 }
 </update_business_field>
+
+Important guidelines for task creation:
+1. Keep titles concise and avoid special characters
+2. For descriptions, use \\n for line breaks
+3. Ensure all JSON is properly escaped
+4. Status must be one of: todo, in_progress, done
 
 Always provide a response to the user explaining what you're doing.`,
     });
