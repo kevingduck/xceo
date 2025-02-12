@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,21 +13,36 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, BarChart2, ListTodo } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 type FeatureSuggestion = {
+  id: number;
   title: string;
   description: string;
   confidence: number;
   impact: "LOW" | "MEDIUM" | "HIGH";
   timeline: "SHORT" | "MEDIUM" | "LONG";
   supportingEvidence: string[];
+  feedback: string;
+  createdAt: string;
 };
 
 export default function ResearchPage() {
   const [textInput, setTextInput] = useState("");
   const { toast } = useToast();
-  const [suggestions, setSuggestions] = useState<FeatureSuggestion[]>([]);
+  const queryClient = useQueryClient();
+
+  // Fetch stored suggestions
+  const { data: storedSuggestions = [], isLoading } = useQuery({
+    queryKey: ['featureSuggestions'],
+    queryFn: async () => {
+      const response = await fetch("/api/feature-suggestions");
+      if (!response.ok) {
+        throw new Error("Failed to fetch suggestions");
+      }
+      return response.json() as Promise<FeatureSuggestion[]>;
+    }
+  });
 
   const analyzeMutation = useMutation({
     mutationFn: async (feedback: string) => {
@@ -43,11 +58,12 @@ export default function ResearchPage() {
       }
       return response.json() as Promise<FeatureSuggestion[]>;
     },
-    onSuccess: (data) => {
-      setSuggestions(data);
+    onSuccess: () => {
+      // Invalidate and refetch suggestions after successful analysis
+      queryClient.invalidateQueries({ queryKey: ['featureSuggestions'] });
       toast({
         title: "Analysis Complete",
-        description: `Generated ${data.length} feature suggestions`,
+        description: "New feature suggestions have been generated and saved",
       });
     },
     onError: (error) => {
@@ -130,54 +146,58 @@ export default function ResearchPage() {
       </Card>
 
       {/* Analysis Results Section */}
-      {suggestions.length > 0 && (
+      {(storedSuggestions.length > 0 || isLoading) && (
         <Card className="p-6 space-y-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <BarChart2 className="w-5 h-5" />
             Analysis Results
           </h2>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Suggested Feature</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-center">Confidence</TableHead>
-                <TableHead>Impact</TableHead>
-                <TableHead>Timeline</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {suggestions.map((suggestion, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{suggestion.title}</TableCell>
-                  <TableCell className="max-w-md">
-                    {suggestion.description}
-                    {suggestion.supportingEvidence.length > 0 && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        Evidence:
-                        <ul className="list-disc list-inside">
-                          {suggestion.supportingEvidence.map((evidence, i) => (
-                            <li key={i}>{evidence}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">{suggestion.confidence}%</TableCell>
-                  <TableCell>{suggestion.impact}</TableCell>
-                  <TableCell>{suggestion.timeline}</TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm">
-                      <ListTodo className="w-4 h-4 mr-2" />
-                      Create Task
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <div>Loading suggestions...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Suggested Feature</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-center">Confidence</TableHead>
+                  <TableHead>Impact</TableHead>
+                  <TableHead>Timeline</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {storedSuggestions.map((suggestion) => (
+                  <TableRow key={suggestion.id}>
+                    <TableCell className="font-medium">{suggestion.title}</TableCell>
+                    <TableCell className="max-w-md">
+                      {suggestion.description}
+                      {suggestion.supportingEvidence.length > 0 && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          Evidence:
+                          <ul className="list-disc list-inside">
+                            {suggestion.supportingEvidence.map((evidence, i) => (
+                              <li key={i}>{evidence}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">{suggestion.confidence}%</TableCell>
+                    <TableCell>{suggestion.impact}</TableCell>
+                    <TableCell>{suggestion.timeline}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm">
+                        <ListTodo className="w-4 h-4 mr-2" />
+                        Create Task
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
       )}
     </div>
