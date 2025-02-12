@@ -717,24 +717,13 @@ export default function OfferingsPage() {
                   currency: "USD",
                   billingCycle: data.price.billingCycle || undefined,
                 },
-                features: data.features || [],
-              };
-
-              // Ensure features array exists
-              const cleanedFormData = {
-                ...formData,
-                features: formData.features || [],
-                price: {
-                  ...formData.price,
-                  amount: Number(formData.price.amount),
-                  billingCycle: formData.price.billingCycle || undefined
-                }
+                features: []
               };
 
               if (editingTier) {
-                updatePricingTier.mutate({ id: editingTier.id, data: cleanedFormData });
+                updatePricingTier.mutate({ id: editingTier.id, data: formData });
               } else {
-                addPricingTier.mutate(cleanedFormData);
+                addPricingTier.mutate(formData);
               }
             })}>
               <div className="space-y-4">
