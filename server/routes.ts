@@ -4,7 +4,7 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
-  teamMembers, positions, candidates, taskSchema, updateTaskSchema
+  teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings
 } from "@db/schema";
 import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
