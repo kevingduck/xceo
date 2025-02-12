@@ -720,10 +720,21 @@ export default function OfferingsPage() {
                 features: data.features || [],
               };
 
+              // Ensure features array exists
+              const cleanedFormData = {
+                ...formData,
+                features: formData.features || [],
+                price: {
+                  ...formData.price,
+                  amount: Number(formData.price.amount),
+                  billingCycle: formData.price.billingCycle || undefined
+                }
+              };
+
               if (editingTier) {
-                updatePricingTier.mutate({ id: editingTier.id, data: formData });
+                updatePricingTier.mutate({ id: editingTier.id, data: cleanedFormData });
               } else {
-                addPricingTier.mutate(formData);
+                addPricingTier.mutate(cleanedFormData);
               }
             })}>
               <div className="space-y-4">
