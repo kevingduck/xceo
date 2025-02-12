@@ -66,9 +66,13 @@ const pricingTierSchema = z.object({
     amount: z.number().min(0, "Price must be positive"),
     currency: z.string().default("USD"),
     billingCycle: z.string().optional(),
+    setupFee: z.number().optional(),
   }),
   offeringId: z.number(),
   features: z.array(z.string()).default([]),
+  isPopular: z.boolean().default(false),
+  maxUsers: z.number().optional(),
+  status: z.enum(["active", "archived"]).default("active"),
 });
 
 const offeringFormSchema = z.object({
@@ -179,19 +183,35 @@ export default function OfferingsPage() {
 
   const addPricingTier = useMutation({
     mutationFn: async (data: z.infer<typeof pricingTierSchema>) => {
-      console.log('Submitting pricing tier:', data);
-      const res = await fetch("/api/pricing-tiers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Error creating pricing tier:', errorText);
-        throw new Error(errorText);
+      try {
+        console.log('Submitting pricing tier:', data);
+        const res = await fetch("/api/pricing-tiers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...data,
+            features: data.features || [],
+            price: {
+              ...data.price,
+              currency: data.price.currency || "USD",
+              billingCycle: data.price.billingCycle || "monthly"
+            }
+          }),
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('Error creating pricing tier:', errorText);
+          throw new Error(errorText);
+        }
+
+        const result = await res.json();
+        return result;
+      } catch (error) {
+        console.error('Mutation error:', error);
+        throw error;
       }
-      return res.json();
     },
     onError: (error) => {
       toast({
@@ -276,6 +296,9 @@ export default function OfferingsPage() {
         billingCycle: "",
       },
       features: [],
+      isPopular: false,
+      maxUsers: undefined,
+      status: "active",
     },
   });
 
@@ -312,11 +335,41 @@ export default function OfferingsPage() {
     return colors[status as keyof typeof colors] || "bg-gray-500/10 text-gray-600";
   };
 
+  const handlePricingTierSubmit = (data: z.infer<typeof pricingTierSchema>) => {
+    if (!selectedOffering) {
+      toast({
+        title: "Error",
+        description: "Please select an offering first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = {
+      ...data,
+      offeringId: selectedOffering.id,
+      features: data.features || [],
+      price: {
+        amount: Number(data.price.amount),
+        currency: "USD",
+        billingCycle: data.price.billingCycle || "monthly",
+      },
+      status: "active" as const,
+    };
+
+    if (editingTier) {
+      updatePricingTier.mutate({ id: editingTier.id, data: formData });
+    } else {
+      addPricingTier.mutate(formData);
+    }
+  };
+
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold">Offerings</h1>
-        <Button 
+        <Button
           onClick={() => {
             setEditingOffering(null);
             setShowOfferingForm(true);
@@ -583,6 +636,9 @@ export default function OfferingsPage() {
                 },
                 offeringId: selectedOffering.id,
                 features: [],
+                isPopular: false,
+                maxUsers: undefined,
+                status: "active",
               });
             }}
             className="w-full sm:w-auto"
@@ -643,6 +699,9 @@ export default function OfferingsPage() {
                               price: tier.price,
                               offeringId: tier.offeringId,
                               features: tier.features || [],
+                              isPopular: tier.isPopular || false,
+                              maxUsers: tier.maxUsers,
+                              status: tier.status,
                             });
                           }}
                         >
@@ -698,34 +757,7 @@ export default function OfferingsPage() {
             </DialogTitle>
           </DialogHeader>
           <Form {...pricingTierForm}>
-            <form onSubmit={pricingTierForm.handleSubmit((data) => {
-              if (!selectedOffering) {
-                toast({
-                  title: "Error",
-                  description: "Please select an offering first",
-                  variant: "destructive",
-                });
-                return;
-              }
-
-              const formData = {
-                name: data.name,
-                description: data.description,
-                offeringId: selectedOffering.id,
-                price: {
-                  amount: Number(data.price.amount),
-                  currency: "USD",
-                  billingCycle: data.price.billingCycle || undefined,
-                },
-                features: []
-              };
-
-              if (editingTier) {
-                updatePricingTier.mutate({ id: editingTier.id, data: formData });
-              } else {
-                addPricingTier.mutate(formData);
-              }
-            })}>
+            <form onSubmit={pricingTierForm.handleSubmit(handlePricingTierSubmit)}>
               <div className="space-y-4">
                 <FormField
                   control={pricingTierForm.control}
@@ -803,7 +835,7 @@ export default function OfferingsPage() {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   type="submit"
                   className="w-full sm:w-auto"
                 >
