@@ -4,7 +4,7 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
-  teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings
+  teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings, pricingTiers, offeringFeatures, roadmapItems, packages, packageOfferings
 } from "@db/schema";
 import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -13,7 +13,7 @@ import { analyzeFeedback } from "./services/feedback-analysis";
 
 const offeringSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  description: z.string().min(1, "Description is required"), 
+  description: z.string().min(1, "Description is required"),
   type: z.enum(["product", "service"]),
   status: z.enum(["active", "discontinued", "planned"]).default("active"),
   price: z.object({
@@ -2346,6 +2346,118 @@ Culture & Values:
       res.status(500).json({
         error: "Failed to analyze feedback",
         message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Pricing Tiers API
+  app.get("/api/pricing-tiers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const allTiers = await db.query.pricingTiers.findMany({
+        orderBy: (pricingTiers, { desc }) => [desc(pricingTiers.createdAt)]
+      });
+      res.json(allTiers);
+    } catch (error) {
+      console.error("Error fetching pricing tiers:", error);
+      res.status(500).json({ error: "Failed to fetch pricing tiers" });
+    }
+  });
+
+  app.post("/api/pricing-tiers", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const result = pricingTierSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: result.error.issues.map(i => i.message)
+        });
+      }
+
+      const [tier] = await db.insert(pricingTiers)
+        .values({
+          ...result.data,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(tier);
+    } catch (error) {
+      console.error("Error creating pricing tier:", error);
+      res.status(500).json({
+        error: "Failed to create pricing tier",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.patch("/api/pricing-tiers/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const tierId = parseInt(req.params.id);
+      if (isNaN(tierId)) return res.status(400).json({ error: "Invalid tier ID" });
+
+      const result = pricingTierSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: result.error.issues.map(i => i.message)
+        });
+      }
+
+      const [existingTier] = await db
+        .select()
+        .from(pricingTiers)
+        .where(eq(pricingTiers.id, tierId))
+        .limit(1);
+
+      if (!existingTier) return res.status(404).json({ error: "Pricing tier not found" });
+      if (existingTier.userId !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
+
+      const [updatedTier] = await db
+        .update(pricingTiers)
+        .set({
+          ...result.data,
+          updatedAt: new Date()
+        })
+        .where(eq(pricingTiers.id, tierId))
+        .returning();
+
+      res.json(updatedTier);
+    } catch (error) {
+      console.error("Error updating pricing tier:", error);
+      res.status(500).json({
+        error: "Failed to update pricing tier",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.delete("/api/pricing-tiers/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const tierId = parseInt(req.params.id);
+      if (isNaN(tierId)) return res.status(400).json({ error: "Invalid tier ID" });
+
+      const [existingTier] = await db
+        .select()
+        .from(pricingTiers)
+        .where(eq(pricingTiers.id, tierId))
+        .limit(1);
+
+      if (!existingTier) return res.status(404).json({ error: "Pricing tier not found" });
+      if (existingTier.userId !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
+
+      await db.delete(pricingTiers).where(eq(pricingTiers.id, tierId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting pricing tier:", error);
+      res.status(500).json({
+        error: "Failed to delete pricing tier",
+        details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
