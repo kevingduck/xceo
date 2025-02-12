@@ -1,73 +1,67 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { z } from "zod";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Define the schema for feature suggestions
-const featureSuggestionSchema = z.object({
+// Schema definitions
+export const featureSuggestionSchema = z.object({
   title: z.string(),
   description: z.string(),
-  confidence: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(100),
   impact: z.enum(["LOW", "MEDIUM", "HIGH"]),
   timeline: z.enum(["SHORT", "MEDIUM", "LONG"]),
-  supportingEvidence: z.array(z.string()),
+  supportingEvidence: z.array(z.string())
 });
 
 export type FeatureSuggestion = z.infer<typeof featureSuggestionSchema>;
 
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const SYSTEM_PROMPT = `You are a product analyst helping to analyze user feedback and generate feature suggestions. 
+For each piece of feedback, generate structured feature suggestions.
+
+Each suggestion must include:
+- title: A short, clear title for the feature
+- description: A brief description of what the feature does and why it's valuable
+- confidence: A number between 0-100 indicating how strongly this feature is supported by the feedback
+- impact: Expected business impact (LOW/MEDIUM/HIGH)
+- timeline: Estimated implementation timeline (SHORT/MEDIUM/LONG)
+- supportingEvidence: Array of specific quotes or points from the feedback that support this suggestion
+
+Format your response as a JSON array of feature suggestions.`;
+
 export async function analyzeFeedback(feedback: string): Promise<FeatureSuggestion[]> {
-  const systemPrompt = `You are a product analyst AI that analyzes user feedback and converts it into structured feature suggestions.
-Your task is to analyze the provided feedback and identify potential features or improvements.
-Format your response as a JSON array of feature suggestions, where each suggestion has:
-- title: A concise name for the feature
-- description: A clear explanation of what the feature entails
-- confidence: A number between 0 and 1 indicating how confident you are in this suggestion based on the feedback
-- impact: "LOW", "MEDIUM", or "HIGH" indicating the potential impact on users
-- timeline: "SHORT", "MEDIUM", or "LONG" indicating the estimated implementation timeline
-- supportingEvidence: Array of quotes or references from the feedback that support this suggestion
-
-Example format:
-[{
-  "title": "Dark Mode Support",
-  "description": "Add a dark theme option for better nighttime viewing",
-  "confidence": 0.9,
-  "impact": "MEDIUM",
-  "timeline": "SHORT",
-  "supportingEvidence": ["User mentioned eye strain at night", "Multiple requests for dark mode"]
-}]`;
-
   try {
-    const message = await anthropic.messages.create({
+    // Send feedback to Claude for analysis
+    const completion = await anthropic.messages.create({
       model: "claude-3-sonnet-20240229",
-      max_tokens: 4000,
-      temperature: 0.2,
-      system: systemPrompt,
+      max_tokens: 1024,
+      temperature: 0.5,
+      system: SYSTEM_PROMPT,
       messages: [{
         role: "user",
-        content: `Analyze this feedback and suggest features: ${feedback}`
+        content: `Analyze this feedback and generate feature suggestions: ${feedback}`
       }]
     });
 
-    const content = message.content[0].text;
-    if (!content) {
-      throw new Error("No content in response");
+    // Extract JSON from Claude's response
+    const jsonMatch = completion.content[0].text.match(/\{|\[.*\}|\]/s);
+    if (!jsonMatch) {
+      throw new Error("Could not extract JSON from Claude's response");
     }
 
-    // Parse the JSON response
-    try {
-      const suggestions = JSON.parse(content) as Array<unknown>;
-      const validatedSuggestions = suggestions.map(suggestion => 
-        featureSuggestionSchema.parse(suggestion)
-      );
-      return validatedSuggestions;
-    } catch (error) {
-      console.error("Failed to parse LLM response:", error);
-      throw new Error("Failed to parse feature suggestions");
+    // Parse and validate the suggestions
+    const rawSuggestions = JSON.parse(jsonMatch[0]);
+    const result = z.array(featureSuggestionSchema).safeParse(rawSuggestions);
+
+    if (!result.success) {
+      console.error("Validation failed:", result.error);
+      throw new Error("Invalid feature suggestions format");
     }
+
+    return result.data;
   } catch (error) {
-    console.error("Error calling Claude:", error);
-    throw new Error("Failed to analyze feedback");
+    console.error("Error analyzing feedback:", error);
+    throw new Error(error instanceof Error ? error.message : "Failed to analyze feedback");
   }
 }
