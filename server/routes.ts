@@ -23,6 +23,18 @@ const offeringSchema = z.object({
   }).optional()
 });
 
+const pricingTierSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  price: z.object({
+    amount: z.number().min(0, "Price must be positive"),
+    currency: z.string().default("USD"),
+    billingCycle: z.string().optional(),
+  }),
+  offeringId: z.number(),
+  features: z.array(z.string()).default([])
+});
+
 // Schema definitions
 const teamMemberSchema = z.object({
   name: z.string().min(1, "Name is required"),
