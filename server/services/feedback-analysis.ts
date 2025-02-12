@@ -28,7 +28,7 @@ Each suggestion must include:
 - timeline: Estimated implementation timeline (SHORT/MEDIUM/LONG)
 - supportingEvidence: Array of specific quotes or points from the feedback that support this suggestion
 
-Format your response as a JSON array of feature suggestions.`;
+Format your response EXACTLY as a JSON array of feature suggestions. Do not include any other text or explanation.`;
 
 export async function analyzeFeedback(feedback: string): Promise<FeatureSuggestion[]> {
   try {
@@ -40,33 +40,36 @@ export async function analyzeFeedback(feedback: string): Promise<FeatureSuggesti
       system: SYSTEM_PROMPT,
       messages: [{
         role: "user",
-        content: `Analyze this feedback and generate feature suggestions: ${feedback}`
+        content: `Analyze this feedback and generate feature suggestions. Respond only with the JSON array: ${feedback}`
       }]
     });
+
+    if (!completion.content || completion.content.length === 0) {
+      throw new Error("Empty response from Claude");
+    }
 
     const content = completion.content[0];
     if (content.type !== 'text') {
       throw new Error("Unexpected response type from Claude");
     }
 
-    // Extract JSON from Claude's response
-    const jsonMatch = content.text.match(/\{|\[.*\}|\]/s);
-    if (!jsonMatch) {
-      throw new Error("Could not extract JSON from Claude's response");
-    }
-
     // Parse and validate the suggestions
-    const rawSuggestions = JSON.parse(jsonMatch[0]);
-    const result = z.array(featureSuggestionSchema).safeParse(rawSuggestions);
+    try {
+      const rawSuggestions = JSON.parse(content.text);
+      const result = z.array(featureSuggestionSchema).safeParse(rawSuggestions);
 
-    if (!result.success) {
-      console.error("Validation failed:", result.error);
-      throw new Error("Invalid feature suggestions format");
+      if (!result.success) {
+        console.error("Validation failed:", result.error);
+        throw new Error("Invalid feature suggestions format");
+      }
+
+      return result.data;
+    } catch (parseError) {
+      console.error("Parse error:", parseError, "Raw response:", content.text);
+      throw new Error("Failed to parse Claude's response as JSON");
     }
-
-    return result.data;
   } catch (error) {
     console.error("Error analyzing feedback:", error);
-    throw new Error(error instanceof Error ? error.message : "Failed to analyze feedback");
+    throw error instanceof Error ? error : new Error("Failed to analyze feedback");
   }
 }
