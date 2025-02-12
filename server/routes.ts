@@ -980,47 +980,11 @@ Culture & Values:
       }
 
       const suggestions = await analyzeFeedback(feedback);
-
-      // Store suggestions in database
-      const storedSuggestions = await Promise.all(
-        suggestions.map(suggestion =>
-          db.insert(featureSuggestions)
-            .values({
-              userId: req.user.id,
-              ...suggestion,
-              feedback,
-              createdAt: new Date(),
-            })
-            .returning()
-        )
-      );
-
-      res.json(storedSuggestions);
+      res.json(suggestions);
     } catch (error) {
       console.error("Error in feedback analysis:", error);
       res.status(500).json({
         message: "Failed to analyze feedback",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-
-  // Get stored feature suggestions
-  app.get("/api/feature-suggestions", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    try {
-      const suggestions = await db.query.featureSuggestions.findMany({
-        where: eq(featureSuggestions.userId, req.user.id),
-        orderBy: [desc(featureSuggestions.createdAt)]
-      });
-      res.json(suggestions);
-    } catch (error) {
-      console.error("Error fetching feature suggestions:", error);
-      res.status(500).json({
-        message: "Failed to fetch feature suggestions",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
@@ -1945,7 +1909,7 @@ Culture & Values:
     }
 
     try {
-      const offeringId = parseInt(req.params.id);
+      const offeringId = parseInt(req.paramsid);
       if (isNaN(offeringId)) {
         return res.status(400).send("Invalid offering ID");
       }
@@ -1965,7 +1929,7 @@ Culture & Values:
   });
 
   // Features API
-  app.get("/api/offerings/:id/features", async (req, res) => {
+  app.get("/api/offerings/:id/features", async (reqres) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
 
     try {

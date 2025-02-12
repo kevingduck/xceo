@@ -279,21 +279,6 @@ export const packageOfferings = pgTable("package_offerings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 
-// Add new table after the packageOfferings table
-export const featureSuggestions = pgTable("feature_suggestions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  confidence: integer("confidence").notNull(),
-  impact: text("impact").notNull(),
-  timeline: text("timeline").notNull(),
-  supportingEvidence: jsonb("supporting_evidence").$type<string[]>().notNull(),
-  feedback: text("feedback").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  metadata: jsonb("metadata").$type<Record<string, any>>()
-});
-
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
@@ -304,8 +289,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   positions: many(positions),
   candidates: many(candidates),
   conversationSummaries: many(conversationSummaries),
-  offerings: many(offerings),
-  featureSuggestions: many(featureSuggestions) // Add this line
+  offerings: many(offerings)
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -459,14 +443,6 @@ export const packageOfferingsRelations = relations(packageOfferings, ({ one }) =
   tier: one(pricingTiers, {
     fields: [packageOfferings.tierId],
     references: [pricingTiers.id]
-  })
-}));
-
-// Add feature suggestions relations
-export const featureSuggestionsRelations = relations(featureSuggestions, ({ one }) => ({
-  user: one(users, {
-    fields: [featureSuggestions.userId],
-    references: [users.id]
   })
 }));
 
