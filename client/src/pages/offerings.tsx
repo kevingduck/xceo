@@ -709,10 +709,11 @@ export default function OfferingsPage() {
               }
 
               const formData = {
-                ...data,
+                name: data.name,
+                description: data.description,
                 offeringId: selectedOffering.id,
                 price: {
-                  amount: data.price.amount,
+                  amount: Number(data.price.amount),
                   currency: "USD",
                   billingCycle: data.price.billingCycle || undefined,
                 },
