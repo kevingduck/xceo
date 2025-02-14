@@ -189,6 +189,18 @@ export default function AdminPage() {
 
   const renderValue = (value: any, item: any, key: string) => {
     if (editingItem?.id === item.id) {
+      if (key === 'role') {
+        return (
+          <select
+            value={editingItem[key]}
+            onChange={(e) => setEditingItem({ ...editingItem, [key]: e.target.value })}
+            className="w-full p-2 border rounded"
+          >
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        );
+      }
       if (typeof value === 'boolean') {
         return (
           <input
