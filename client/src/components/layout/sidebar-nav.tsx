@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, MessageSquare, CheckSquare, BarChart, Briefcase, Database, Settings, Users, Package, FlaskConical } from "lucide-react";
+import { useUser } from "@/hooks/use-user";
 
-const navItems = [
+const allNavItems = [
   {
     title: "Dashboard",
     href: "/",
@@ -51,7 +52,8 @@ const navItems = [
   {
     title: "Admin",
     href: "/admin",
-    icon: Database
+    icon: Database,
+    adminOnly: true
   }
 ];
 
@@ -62,6 +64,10 @@ interface SidebarNavProps {
 
 export function SidebarNav({ mobile, onClose }: SidebarNavProps) {
   const [location] = useLocation();
+  const { user } = useUser();
+
+  // Filter out admin-only items for non-admin users
+  const navItems = allNavItems.filter(item => !item.adminOnly || user?.role === "admin");
 
   return (
     <div className={cn(
