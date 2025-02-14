@@ -180,11 +180,22 @@ export default function AdminPage() {
 
   const handleSaveEdit = (item: any) => {
     const { id, ...data } = item;
-    updateItemMutation.mutate({
-      table: activeTable,
-      id,
-      data
-    });
+
+    // If we're editing a user, only send necessary fields
+    if (activeTable === 'users') {
+      const { password, createdAt, updatedAt, ...userUpdateData } = data;
+      updateItemMutation.mutate({
+        table: activeTable,
+        id,
+        data: userUpdateData
+      });
+    } else {
+      updateItemMutation.mutate({
+        table: activeTable,
+        id,
+        data
+      });
+    }
   };
 
   const renderValue = (value: any, item: any, key: string) => {
