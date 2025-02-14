@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -42,6 +42,22 @@ export default function AdminPage() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Add auth check
+  useEffect(() => {
+    fetch('/api/user')
+      .then(res => res.json())
+      .then(user => {
+        if (!user || user.role !== 'admin') {
+          window.location.href = '/';
+          toast({
+            title: "Access Denied",
+            description: "You must be an admin to view this page",
+            variant: "destructive"
+          });
+        }
+      });
+  }, []);
 
   const { data: users = [] } = useQuery<SelectUser[]>({
     queryKey: ["/api/admin/users"],

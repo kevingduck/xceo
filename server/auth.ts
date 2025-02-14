@@ -34,6 +34,25 @@ declare global {
   }
 }
 
+// Add isAdmin middleware
+export const isAdmin = (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ 
+      ok: false,
+      message: "Not logged in" 
+    });
+  }
+
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ 
+      ok: false,
+      message: "Access denied. Admin privileges required." 
+    });
+  }
+
+  next();
+};
+
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
@@ -118,7 +137,7 @@ export function setupAuth(app: Express) {
         });
       }
 
-      const { username, password } = result.data;
+      const { username, password, role = "user" } = result.data;
 
       // Check if user already exists
       const [existingUser] = await db
@@ -143,6 +162,7 @@ export function setupAuth(app: Express) {
         .values({
           username,
           password: hashedPassword,
+          role,
         })
         .returning();
 
@@ -156,7 +176,7 @@ export function setupAuth(app: Express) {
         return res.json({
           ok: true,
           message: "Registration successful",
-          user: { id: newUser.id, username: newUser.username },
+          user: { id: newUser.id, username: newUser.username, role: newUser.role },
         });
       });
     } catch (error) {
@@ -220,7 +240,8 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      return res.json(req.user);
+      const { password, ...userWithoutPassword } = req.user;
+      return res.json(userWithoutPassword);
     }
     res.status(401).json({ 
       ok: false,

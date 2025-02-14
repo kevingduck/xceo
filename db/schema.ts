@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
+  role: text("role").notNull().default("user"), // Add role field
   githubToken: text("github_token"),
   businessName: text("business_name"),
   businessDescription: text("business_description"),
@@ -451,6 +452,7 @@ export const packageOfferingsRelations = relations(packageOfferings, ({ one }) =
 export const insertUserSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["admin", "user"]).default("user"),
   githubToken: z.string().optional(),
   businessName: z.string().optional(),
   businessDescription: z.string().optional(),
