@@ -4,7 +4,8 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
-  teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings, pricingTiers, offeringFeatures, roadmapItems, packages, packageOfferings
+  teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings,
+  pricingTiers, offeringFeatures, roadmapItems, packages, packageOfferings
 } from "@db/schema";
 import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -35,7 +36,6 @@ const pricingTierSchema = z.object({
   features: z.array(z.string()).default([])
 });
 
-// Schema definitions
 const teamMemberSchema = z.object({
   name: z.string().min(1, "Name is required"),
   role: z.string().min(1, "Role is required"),
@@ -71,6 +71,52 @@ const configureCEOSchema = z.object({
   businessDescription: z.string().min(1, "Business description is required"),
   objectives: z.array(z.string()).min(1, "At least one objective is required"),
 });
+
+const positionSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  requirements: z.string(),
+  minSalary: z.string().optional(),
+  maxSalary: z.string().optional(),
+  location: z.string().optional()
+})
+
+const packageSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  offerings: z.array(z.object({
+    offeringId: z.number(),
+    tierId: z.number().optional()
+  }))
+})
+
+const packageOfferingSchema = z.object({
+  offeringId: z.number(),
+  tierId: z.number().optional()
+})
+
+const featureSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+})
+
+const roadmapItemSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  status: z.enum(["todo", "in progress", "done"]).default("todo"),
+  dueDate: z.string().transform(str => new Date(str))
+})
+
+
+// Update the business info fields type
+const businessInfoFields = {
+  company_name: {
+    value: '',
+    type: 'text' as const,
+    updatedAt: '',
+    updatedBy: 'system' as const
+  }
+} as const;
 
 export function registerRoutes(app: Express): Server {
   // Tasks API
@@ -831,7 +877,7 @@ Culture & Values:
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
 
-      // Get all business info records with explicit selection
+      // Get all business info records with explicit selection and user filtering
       const businessInfoRecords = await db
         .select()
         .from(businessInfo)
@@ -869,16 +915,6 @@ Culture & Values:
           fields: section.fields || {},
           content: section.content || ""
         }));
-
-      // Log processed sections for debugging
-      console.log("Processed business info sections:",
-        sections.map(s => ({
-          section: s.section,
-          hasFields: Object.keys(s.fields || {}).length > 0,
-          hasContent: Boolean(s.content),
-          contentPreview: s.content?.substring(0, 50)
-        }))
-      );
 
       res.json(sections);
     } catch (error) {
@@ -980,13 +1016,19 @@ Culture & Values:
     }
   });
 
-  // Analytics API
+  // Analytics API with user filtering
   app.get("/api/analytics", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-    const userAnalytics = await db.query.analytics.findMany({
-      where: eq(analytics.userId, req.user.id)
-    });
-    res.json(userAnalytics);
+    try {
+      const userAnalytics = await db.query.analytics.findMany({
+        where: eq(analytics.userId, req.user.id),
+        orderBy: [desc(analytics.createdAt)]
+            });
+      res.json(userAnalytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).send("Failed to fetch analytics");
+    }
   });
 
   // Feedback Analysis endpoint
@@ -1046,6 +1088,154 @@ Culture & Values:
         message: "Failed to create task",
         error: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  });
+
+  app.post("/api/tasks/feedback", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const { title, description } = req.body;
+      if (!title) {
+        return res.status(400).json({
+          message: "Title is required",
+          details: ["Title must not be empty"]
+        });
+      }
+
+      const [task] = await db.insert(tasks)
+        .values({
+          userId: req.user.id,
+          title: title.trim(),
+          description: description?.trim() || "",
+          status: "todo",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error creating feedback task:", error);
+      res.status(500).json({
+        message: "Failed to create feedback task",
+        details: error instanceof Error ? [error.message] : ["Unknown error"]
+      });
+    }
+  });
+
+  // Team Members API with user filtering
+  app.get("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const members = await db.query.teamMembers.findMany({
+        where: eq(teamMembers.userId, req.user.id),
+        orderBy: [desc(teamMembers.startDate)]
+      });
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      res.status(500).send("Failed to fetch team members");
+    }
+  });
+
+  app.post("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const result = teamMemberSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
+      }
+
+      const [member] = await db.insert(teamMembers)
+        .values({
+          ...result.data,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(member);
+    } catch (error) {
+      console.error("Error creating team member:", error);
+      res.status(500).send("Failed to create team member");
+    }
+  });
+
+  // Positions API with user filtering
+  app.get("/api/positions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userPositions = await db.query.positions.findMany({
+        where: eq(positions.userId, req.user.id),
+        orderBy: [desc(positions.createdAt)]
+      });
+      res.json(userPositions);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      res.status(500).send("Failed to fetch positions");
+    }
+  });
+
+  // Candidates API with user filtering
+  app.get("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userCandidates = await db.query.candidates.findMany({
+        where: eq(candidates.userId, req.user.id),
+        orderBy: [desc(candidates.createdAt)]
+      });
+      res.json(userCandidates);
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
+      res.status(500).send("Failed to fetch candidates");
+    }
+  });
+
+  app.post("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const result = candidateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map((i: z.ZodIssue) => i.message)
+        });
+      }
+
+      const [candidate] = await db.insert(candidates)
+        .values({
+          ...result.data,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          skills: [result.data.skills],
+          experience: result.data.experienceYears
+        })
+        .returning();
+
+      res.json(candidate);
+    } catch (error) {
+      console.error("Error creating candidate:", error);
+      res.status(500).send("Failed to create candidate");
+    }
+  });
+
+  // Keep only one offerings route with proper user filtering
+  app.get("/api/offerings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userOfferings = await db.query.offerings.findMany({
+        where: eq(offerings.userId, req.user.id),
+        orderBy: [desc(offerings.createdAt)]
+      });
+      res.json(userOfferings);
+    } catch (error) {
+      console.error("Error fetching offerings:", error);
+      res.status(500).send("Failed to fetch offerings");
     }
   });
 
@@ -1124,14 +1314,13 @@ Culture & Values:
     }
   });
 
-  // Team Members API
+  // Team Members API with user filtering
   app.get("/api/team-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
       const members = await db.query.teamMembers.findMany({
         where: eq(teamMembers.userId, req.user.id),
-        orderBy: (members, { desc }) => [desc(members.createdAt)]
+        orderBy: [desc(teamMembers.startDate)]
       });
       res.json(members);
     } catch (error) {
@@ -1247,16 +1436,15 @@ Culture & Values:
     }
   });
 
-  // Positions API
+  // Positions API with user filtering
   app.get("/api/positions", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
-      const openPositions = await db.query.positions.findMany({
+      const positions = await db.query.positions.findMany({
         where: eq(positions.userId, req.user.id),
-        orderBy: (positions, { desc }) => [desc(positions.createdAt)]
+        orderBy: [desc(positions.createdAt)]
       });
-      res.json(openPositions);
+      res.json(positions);
     } catch (error) {
       console.error("Error fetching positions:", error);
       res.status(500).send("Failed to fetch positions");
@@ -1352,16 +1540,15 @@ Culture & Values:
     }
   });
 
-  // Candidates API
+  // Candidates API with user filtering
   app.get("/api/candidates", async (req, res) =>{
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try{
-      const allCandidates = await db.query.candidates.findMany({
+      const candidates = await db.query.candidates.findMany({
         where: eq(candidates.userId, req.user.id),
-        orderBy: (candidates, { desc }) => [desc(candidates.createdAt)]
+        orderBy: [desc(candidates.createdAt)]
       });
-      res.json(allCandidates);
+      res.json(candidates);
     } catch (error) {
       console.error("Error fetching candidates:", error);
       res.status(500).send("Failed to fetch candidates");
@@ -1882,15 +2069,13 @@ Culture & Values:
     }
   });
 
-  // Offerings API
+  // Offerings API with user filtering
   app.get("/api/offerings", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
-
     try {
-      const { offerings } = await import("@db/schema");
       const userOfferings = await db.query.offerings.findMany({
         where: eq(offerings.userId, req.user.id),
-        orderBy: (offerings, { desc }) => [desc(offerings.createdAt)]
+        orderBy: [desc(offerings.createdAt)]
       });
       res.json(userOfferings);
     } catch (error) {
