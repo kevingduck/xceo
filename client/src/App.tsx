@@ -59,7 +59,8 @@ function ProtectedRoutes() {
         <Route path="/research" component={Research} />
         <Route path="/configure-ceo" component={ConfigureCEO} />
         <Route path="/settings" component={Settings} />
-        <Route path="/admin" component={Admin} />
+        {/* Only render admin route if user is admin */}
+        {user.role === "admin" && <Route path="/admin" component={Admin} />}
         <Route component={NotFound} />
       </Switch>
       <FloatingChat />

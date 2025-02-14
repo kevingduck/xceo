@@ -41,7 +41,10 @@ export default function DashboardLayout({
               {/* Desktop sidebar trigger */}
               <SidebarTrigger className="hidden md:flex" />
 
-              <span className="font-semibold truncate">Welcome, {user?.username}</span>
+              <span className="font-semibold truncate">
+                Welcome, {user?.username}
+                {user?.role === 'admin' && <span className="ml-1 text-sm text-muted-foreground">(Admin)</span>}
+              </span>
             </div>
 
             <Button variant="ghost" size="icon" onClick={() => logout()}>
