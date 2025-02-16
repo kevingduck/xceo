@@ -250,33 +250,6 @@ export function registerRoutes(app: Express): Server {
           businessObjectives: objectives
         })
         .where(eq(users.id, req.user.id));
-
-      // Create initial welcome message in chat
-      const welcomeMessage = `👋 Welcome to your AI CEO Platform! I'm your dedicated AI CEO assistant for ${businessName}.
-
-I'm here to help you manage and grow your business. Here's a quick overview of how I can assist you:
-
-1. 📋 Task Management: I can create and track tasks for you and your team
-2. 💡 Business Insights: Ask me about your business metrics and performance
-3. 📊 Analytics: View detailed business analytics in the Analytics section
-4. 👥 Team Management: Manage your team and roles in the Team section
-5. 🎯 Objectives Tracking: I'll help you stay aligned with your business objectives:
-${objectives.map((obj, i) => `   ${i + 1}. ${obj}`).join('\n')}
-
-To get started, try asking me to:
-- "Create a task for..." to manage your to-dos
-- "Analyze our business performance" for insights
-- "Help me with [specific business challenge]"
-
-Feel free to ask any questions about your business. I'm here to help 24/7!`;
-
-      await db.insert(chatMessages).values({
-        content: welcomeMessage,
-        role: "assistant",
-        userId: req.user.id,
-        metadata: { type: "welcome" }
-      });
-
       // Create initial business info entries with detailed templates
       const sections = [
         {
@@ -1013,7 +986,7 @@ Culture & Values:
           }))
       } : undefined;
 
-      // Process withAI and get response
+      // Process with AI and get response
       const aiResponse = await processAIMessage(
         req.user.id,
         req.body.content,
@@ -1050,7 +1023,7 @@ Culture & Values:
       const userAnalytics = await db.query.analytics.findMany({
         where: eq(analytics.userId, req.user.id),
         orderBy: [desc(analytics.createdAt)]
-      });
+            });
       res.json(userAnalytics);
     } catch (error) {
       console.error("Error fetching analytics:", error);
@@ -1147,6 +1120,197 @@ Culture & Values:
         message: "Failed to create feedback task",
         details: error instanceof Error ? [error.message] : ["Unknown error"]
       });
+    }
+  });
+
+  // Team Members API with user filtering
+  app.get("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const members = await db.query.teamMembers.findMany({
+        where: eq(teamMembers.userId, req.user.id),
+        orderBy: [desc(teamMembers.startDate)]
+      });
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      res.status(500).send("Failed to fetch team members");
+    }
+  });
+
+  app.post("/api/team-members", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const result = teamMemberSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map(i => i.message)
+        });
+      }
+
+      const [member] = await db.insert(teamMembers)
+        .values({
+          ...result.data,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.json(member);
+    } catch (error) {
+      console.error("Error creating team member:", error);
+      res.status(500).send("Failed to create team member");
+    }
+  });
+
+  // Positions API with user filtering
+  app.get("/api/positions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userPositions = await db.query.positions.findMany({
+        where: eq(positions.userId, req.user.id),
+        orderBy: [desc(positions.createdAt)]
+      });
+      res.json(userPositions);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      res.status(500).send("Failed to fetch positions");
+    }
+  });
+
+  // Candidates API with user filtering
+  app.get("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userCandidates = await db.query.candidates.findMany({
+        where: eq(candidates.userId, req.user.id),
+        orderBy: [desc(candidates.createdAt)]
+      });
+      res.json(userCandidates);
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
+      res.status(500).send("Failed to fetch candidates");
+    }
+  });
+
+  app.post("/api/candidates", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const result = candidateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues.map((i: z.ZodIssue) => i.message)
+        });
+      }
+
+      const [candidate] = await db.insert(candidates)
+        .values({
+          ...result.data,
+          userId: req.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          skills: [result.data.skills],
+          experience: result.data.experienceYears
+        })
+        .returning();
+
+      res.json(candidate);
+    } catch (error) {
+      console.error("Error creating candidate:", error);
+      res.status(500).send("Failed to create candidate");
+    }
+  });
+
+  // Keep only one offerings route with proper user filtering
+  app.get("/api/offerings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
+    try {
+      const userOfferings = await db.query.offerings.findMany({
+        where: eq(offerings.userId, req.user.id),
+        orderBy: [desc(offerings.createdAt)]
+      });
+      res.json(userOfferings);
+    } catch (error) {
+      console.error("Error fetching offerings:", error);
+      res.status(500).send("Failed to fetch offerings");
+    }
+  });
+
+  // Admin routes
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const allUsers = await db
+        .select()
+        .from(users);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/business-info", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const allBusinessInfo = await db
+        .select()
+        .from(businessInfo);
+      res.json(allBusinessInfo);
+    } catch (error) {
+      console.error("Error fetching business info:", error);
+      res.status(500).json({ message: "Failed to fetch business info" });
+    }
+  });
+
+  app.get("/api/admin/tasks", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const allTasks = await db
+        .select()
+        .from(tasks);
+      res.json(allTasks);
+    } catch (error) {      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  app.get("/api/admin/chat-messages", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const allMessages = await db
+        .select()
+        .from(chatMessages);
+      res.json(allMessages);
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      res.status(500).json({ message: "Failed to fetch chat messages" });
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) =>{
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    try {
+      const allAnalytics = await db
+        .select()
+        .from(analytics);
+      res.json(allAnalytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
 
@@ -1906,7 +2070,7 @@ Culture & Values:
   });
 
   // Offerings API with user filtering
-  app.get("/api/offerings", async (reqres) => {
+  app.get("/api/offerings", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
     try {
       const userOfferings = await db.query.offerings.findMany({
@@ -2480,37 +2644,6 @@ Culture & Values:
         error: "Failed to delete pricing tier",
         details: error instanceof Error ? error.message : "Unknown error"
       });
-    }
-  });
-
-  // Admin bulk delete endpoint (properly placed inside registerRoutes)
-  app.post("/api/admin/bulk-delete", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    try {
-      const { table, ids } = req.body;
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ message: "Invalid or empty IDs array" });
-      }
-
-      let result;
-      switch (table) {
-        case "candidates":
-          result = await db
-            .delete(candidates)
-            .where(inArray(candidates.id, ids))
-            .returning();
-          break;
-        default:
-          return res.status(400).json({ message: "Invalid table name" });
-      }
-
-      res.json(result);
-    } catch (error) {
-      console.error("Error performing bulk delete:", error);
-      res.status(500).json({ message: "Failed to perform bulk delete" });
     }
   });
 

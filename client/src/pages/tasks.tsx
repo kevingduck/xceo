@@ -40,9 +40,7 @@ export default function Tasks() {
   );
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
-    queryKey: ["/api/tasks"],
-    refetchOnMount: true,
-    refetchOnWindowFocus: true
+    queryKey: ["/api/tasks"]
   });
 
   const createTask = useMutation({
