@@ -50,13 +50,8 @@ export default function ConfigureCEO() {
         description: "Your AI CEO settings have been updated successfully"
       });
 
-      // If we have history, go back to the previous page
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        // If no history (direct navigation), go to business page
-        setLocation("/business");
-      }
+      // Always redirect to dashboard after configuration
+      setLocation("/dashboard");
     },
     onError: (error: Error) => {
       toast({
@@ -154,8 +149,8 @@ export default function ConfigureCEO() {
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="flex-1"
               disabled={configureCEO.isPending}
             >
