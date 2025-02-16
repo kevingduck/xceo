@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function ConfigureCEO() {
   const [businessName, setBusinessName] = useState("");
@@ -15,6 +15,7 @@ export default function ConfigureCEO() {
   const { user } = useUser();
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   // Initialize form with existing data if available
   useEffect(() => {
@@ -50,8 +51,13 @@ export default function ConfigureCEO() {
         description: "Your AI CEO settings have been updated successfully"
       });
 
-      // Always redirect to dashboard after configuration
-      setLocation("/dashboard");
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/chat"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/business-info"] });
+
+      // Redirect to home page and force a reload to ensure fresh state
+      window.location.href = "/";
     },
     onError: (error: Error) => {
       toast({
