@@ -2,6 +2,10 @@
 
 Run your business with an AI that acts like a CEO - giving you guidance and direction while you stay in control.
 
+## Try it now
+
+https://xceo.replit.app
+
 ## What it does
 
 Think of this as having an AI CEO advisor that's available 24/7. While you and your team handle the actual work, the AI CEO helps by:
