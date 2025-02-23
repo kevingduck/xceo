@@ -15,6 +15,8 @@ You're always in charge - the AI CEO is there to advise and help organize, not t
 
 <img width="1458" alt="image" src="https://github.com/user-attachments/assets/c8a857bb-fa14-4ce3-b033-6b4a8dca4782" />
 
+https://github.com/user-attachments/assets/e706ebda-d96d-47e2-9424-853d0cedbc23
+
 ## Main features
 
 - Smart task management: The AI CEO helps create and prioritize work
