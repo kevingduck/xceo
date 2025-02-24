@@ -1,15 +1,9 @@
 # XCEO 🙅 The AI CEO Who Works For YOU 🫵
-## *The CRM for Solopreneurs*
+## *The CRM for Solopreneurs ... Who Also Need Some Help*
 
 Keep track of your business with an AI that acts like a CEO - giving you guidance and direction while you stay in control.
 
-## Try it now
-
-https://xceo.replit.app
-
-## Remix on Replit
-
-https://replit.com/@kevingduck/XCEO?v=1#README.md
+## ▶️ [Try Live Demo](https://xceo.replit.app) | ↪️ [Remix on Replit](https://replit.com/@kevingduck/XCEO?v=1#README.md)
 
 ## What it does
 
