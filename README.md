@@ -40,7 +40,7 @@ To install:
 1. Get the code:
 ```bash
 git clone https://github.com/kevingduck/xceo.git
-cd ai-ceo-platform
+cd xceo
 ```
 
 2. Install what you need:
