@@ -1,5 +1,5 @@
 # XCEO 🙅 Your AI CEO
-# *The CRM for Solopreneurs*
+## *The CRM for Solopreneurs*
 
 Keep track of your business with an AI that acts like a CEO - giving you guidance and direction while you stay in control.
 
