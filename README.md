@@ -39,7 +39,7 @@ To install:
 
 1. Get the code:
 ```bash
-git clone https://github.com/yourusername/ai-ceo-platform.git
+git clone https://github.com/kevingduck/xceo.git
 cd ai-ceo-platform
 ```
 
