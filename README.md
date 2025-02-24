@@ -36,7 +36,14 @@ You'll need:
 - PostgreSQL (version 13 or newer)
 - An API key from Anthropic for the AI features
 
-To install:
+### Running on Replit
+
+1. Fork this project on Replit
+2. The database will be automatically set up for you
+3. Add your Anthropic API key to the `.env` file
+4. Click the Run button
+
+### Local Development Setup
 
 1. Get the code:
 ```bash
@@ -49,18 +56,35 @@ cd xceo
 npm install
 ```
 
-3. Set up your settings:
-```bash
-cp .env.example .env
-# Add your database and API info to the .env file
-```
+3. Set up your database:
+   1. Install PostgreSQL if you haven't already
+   2. Create a new database: `createdb xceo`
+   3. Copy the environment template:
+   ```bash
+   cp .env.example .env
+   ```
+   4. Update the DATABASE_URL in `.env` with your database details:
+   ```
+   # Format: postgresql://username:password@hostname:port/database_name
+   # Example for local development with default PostgreSQL setup:
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/xceo"
+   ```
+   Note: Replace postgres:postgres with your actual PostgreSQL username and password
 
-4. Set up the database:
+4. Add your Anthropic API key:
+   - Sign up at https://console.anthropic.com/
+   - Get your API key from the dashboard
+   - Add it to your `.env` file:
+   ```
+   ANTHROPIC_API_KEY="your-key-here"
+   ```
+
+5. Set up the database schema:
 ```bash
 npm run db:push
 ```
 
-5. Start it up:
+6. Start the development server:
 ```bash
 npm run dev
 ```
