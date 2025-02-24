@@ -7,6 +7,10 @@ Keep track of your business with an AI that acts like a CEO - giving you guidanc
 
 https://xceo.replit.app
 
+## Remix on Replit
+
+https://replit.com/@kevingduck/XCEO?v=1#README.md
+
 ## What it does
 
 Think of this as having an AI CEO advisor that's available 24/7. While you and your team handle the actual work, the AI CEO helps by:
@@ -38,7 +42,7 @@ You'll need:
 
 ### Running on Replit
 
-1. Fork this project on Replit
+1. [Fork this project on Replit](https://replit.com/@kevingduck/XCEO?v=1#README.md)
 2. The database will be automatically set up for you
 3. Add your Anthropic API key to the `.env` file
 4. Click the Run button
