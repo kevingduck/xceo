@@ -1,0 +1,32 @@
+databases:
+  - name: xceo-db
+    databaseName: xceo
+    user: xceo
+    plan: starter # Change to 'standard' or higher for production
+    region: oregon # Change to your preferred region
+
+services:
+  - type: web
+    name: xceo-app
+    runtime: node
+    plan: starter # Change to 'standard' or higher for production
+    region: oregon # Should match database region
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xceo-db
+          property: connectionString
+      - key: ANTHROPIC_API_KEY
+        sync: false # You'll need to add this manually in Render dashboard
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000 # Render uses port 10000 by default
+      - key: ALLOWED_ORIGINS
+        value: https://xceo-app.onrender.com # Update with your actual URL
+    healthCheckPath: /api/health
+    autoDeploy: true # Automatically deploy on push to main

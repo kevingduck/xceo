@@ -56,7 +56,7 @@ export const isAdmin = (req: Express.Request, res: Express.Response, next: Expre
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID || "ai-ceo-platform",
+    secret: process.env.SESSION_SECRET || process.env.REPL_ID || "ai-ceo-platform",
     resave: false,
     saveUninitialized: false,
     cookie: {

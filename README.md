@@ -67,14 +67,82 @@ The setup script will:
 - Username: `admin`
 - Password: `admin123`
 
-### Option 2: Deploy on Replit
+### Option 2: Deploy on Render (Recommended for Production)
 
-[![Run on Replit](https://replit.com/badge/github/kevingduck/xceo)](https://replit.com/@kevingduck/XCEO?v=1#README.md)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kevingduck/xceo)
 
-1. Click the button above
-2. Add your Anthropic API key
-3. Click Run
-4. Start managing your business!
+1. Click the Deploy to Render button above
+2. Connect your GitHub account if prompted
+3. Fill in the required environment variables:
+   - `ANTHROPIC_API_KEY` - Your Anthropic API key
+   - Leave other fields as default
+4. Click "Create Web Service"
+5. Wait for the build and deployment to complete (5-10 minutes)
+6. Access your app at `https://your-app-name.onrender.com`
+
+**Note**: The free tier spins down after 15 minutes of inactivity. Consider upgrading for always-on service.
+
+### Option 3: Deploy on Other Platforms
+
+**Heroku**:
+- Add Heroku Postgres addon
+- Set `DATABASE_URL` automatically provided
+- Add `ANTHROPIC_API_KEY` to config vars
+- Deploy using Heroku Git or GitHub integration
+
+**Railway**:
+- Use the PostgreSQL plugin
+- Environment variables are automatically injected
+- Deploy directly from GitHub
+
+**DigitalOcean App Platform**:
+- Add a managed database
+- Configure environment variables in the app settings
+- Deploy from GitHub repository
+
+## 🚀 Production Deployment
+
+### Using Render.com (Recommended)
+
+This project includes a `render.yaml` blueprint for easy deployment:
+
+1. **Fork this repository** to your GitHub account
+
+2. **Sign up for Render** at [render.com](https://render.com)
+
+3. **Create New Blueprint Instance**:
+   - Go to your Render dashboard
+   - Click "New +" → "Blueprint"
+   - Connect your GitHub account
+   - Select your forked repository
+   - Click "Connect"
+
+4. **Configure Environment Variables**:
+   - `ANTHROPIC_API_KEY`: Your Anthropic API key (required)
+   - Other variables are auto-configured
+
+5. **Deploy**:
+   - Review the services (Web Service + PostgreSQL)
+   - Click "Apply"
+   - Wait for deployment (5-10 minutes)
+
+6. **Post-Deployment**:
+   ```bash
+   # SSH into your Render service or use the Shell tab
+   npm run db:push          # Run migrations
+   npm run db:create-admin  # Create admin user
+   ```
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes | Auto-set by Render |
+| `ANTHROPIC_API_KEY` | Anthropic API key for AI features | Yes | - |
+| `SESSION_SECRET` | Session encryption key | Yes | Auto-generated |
+| `PORT` | Server port | No | 10000 |
+| `NODE_ENV` | Environment mode | No | production |
+| `ALLOWED_ORIGINS` | CORS allowed origins | No | Your Render URL |
 
 ## 🛠️ Tech Stack
 

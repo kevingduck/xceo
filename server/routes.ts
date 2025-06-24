@@ -2663,6 +2663,27 @@ Culture & Values:
     }
   });
 
+  // Health check endpoint for monitoring
+  app.get("/api/health", async (req, res) => {
+    try {
+      // Check database connection
+      await db.select().from(users).limit(1);
+      
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || "development"
+      });
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        error: "Database connection failed",
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
 

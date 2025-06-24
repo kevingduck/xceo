@@ -1,0 +1,30 @@
+{
+  "services": [
+    {
+      "type": "web",
+      "name": "xceo-app",
+      "runtime": "node",
+      "plan": "starter",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npm run start",
+      "envVars": [
+        {
+          "key": "ANTHROPIC_API_KEY",
+          "value": "",
+          "required": true,
+          "prompt": "Enter your Anthropic API key (get one at https://console.anthropic.com/)"
+        }
+      ],
+      "healthCheckPath": "/api/health",
+      "autoDeploy": true
+    }
+  ],
+  "databases": [
+    {
+      "name": "xceo-db",
+      "databaseName": "xceo",
+      "user": "xceo",
+      "plan": "starter"
+    }
+  ]
+}
