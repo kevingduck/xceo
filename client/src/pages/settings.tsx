@@ -2,19 +2,25 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Settings as SettingsIcon, Trash2 } from "lucide-react";
+import { Download, Settings as SettingsIcon, Trash2, Bug } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
+import { ErrorLogViewer } from "@/components/error-log-viewer";
+import { useUser } from "@/hooks/use-user";
 
 export default function Settings() {
   const { toast } = useToast();
   const [_, setLocation] = useLocation();
+  const { user } = useUser();
 
   const clearData = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/settings/clear-data", {
         method: "POST",
-        credentials: "include"
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
 
       if (!response.ok) {
@@ -158,6 +164,23 @@ export default function Settings() {
             </AlertDialog>
           </CardContent>
         </Card>
+
+        {(process.env.NODE_ENV === "development" || user?.role === "admin") && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bug className="h-5 w-5" />
+                Error Logs
+              </CardTitle>
+              <CardDescription>
+                View and manage application error logs (Development/Admin only)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ErrorLogViewer />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

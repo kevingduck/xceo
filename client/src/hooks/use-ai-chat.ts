@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChatMessage } from "@db/schema";
+import { AsyncError } from "@/components/async-error-boundary";
 
 export function useAIChat() {
   const queryClient = useQueryClient();
@@ -25,7 +26,24 @@ export function useAIChat() {
 
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || "Failed to send message");
+        let errorMessage = "Failed to send message";
+        
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = text || errorMessage;
+        }
+        
+        throw new AsyncError(
+          errorMessage,
+          `CHAT_${response.status}`,
+          response.status,
+          async () => {
+            // Retry function
+            return sendMessage.mutateAsync(content);
+          }
+        );
       }
 
       return response.json();

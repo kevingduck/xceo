@@ -253,7 +253,10 @@ export default function BusinessPage() {
     mutationFn: async () => {
       const response = await fetch("/api/business-info/initialize", {
         method: "POST",
-        credentials: "include"
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
 
       if (!response.ok) {

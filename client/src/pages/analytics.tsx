@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Card } from "@/components/ui/card";
 import { AnalyticsCard } from "@/components/widgets/analytics-card";
+import { LazyLineChart, LazyBarChart, LazyPieChart } from "@/components/charts/lazy-charts";
 import type { Analytics } from "@db/schema";
 
 export default function Analytics() {
@@ -54,48 +54,21 @@ export default function Analytics() {
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Task Completion Trend</h3>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={taskCompletion}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#3b82f6" />
-              </LineChart>
-            </ResponsiveContainer>
+            <LazyLineChart data={taskCompletion} />
           </div>
         </Card>
 
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Response Time Analysis</h3>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={responseTime}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
+            <LazyBarChart data={responseTime} />
           </div>
         </Card>
 
         <Card className="p-6 col-span-full">
           <h3 className="text-lg font-semibold mb-4">Task Distribution</h3>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={taskDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  fill="#3b82f6"
-                />
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <LazyPieChart data={taskDistribution} />
           </div>
         </Card>
       </div>

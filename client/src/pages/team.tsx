@@ -186,10 +186,10 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map((s) => s.trim()),
+          skills: data.skills ? data.skills.split(",").map((s) => s.trim()) : [],
           experience: {
             years: parseInt(data.experienceYears),
-            highlights: data.highlights.split(",").map((h) => h.trim()),
+            highlights: data.highlights ? data.highlights.split(",").map((h) => h.trim()) : [],
           },
           rating: data.rating ? parseInt(data.rating) : undefined,
         }),
@@ -300,7 +300,7 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map((s) => s.trim()),
+          skills: data.skills ? data.skills.split(",").map((s) => s.trim()) : [],
           salary: data.salary ? parseInt(data.salary) : undefined,
         }),
       });
@@ -365,7 +365,7 @@ export default function TeamPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
-          skills: data.skills.split(",").map((s) => s.trim()),
+          skills: data.skills ? data.skills.split(",").map((s) => s.trim()) : [],
           experienceYears: data.experienceYears ? parseInt(data.experienceYears) : undefined,
           highlights: data.highlights.split(",").map((h) => h.trim()),
           rating: data.rating ? parseInt(data.rating) : undefined,
@@ -482,7 +482,7 @@ export default function TeamPage() {
           department: item.department,
           email: item.email,
           startDate: new Date(item.startDate).toISOString().split('T')[0],
-          skills: item.skills.join(', '),
+          skills: Array.isArray(item.skills) ? item.skills.join(', ') : '',
           bio: item.bio,
           salary: item.salary?.toString(),
         });
@@ -510,9 +510,9 @@ export default function TeamPage() {
           email: item.email,
           phone: item.phone,
           resumeUrl: item.resumeUrl,
-          skills: item.skills.join(', '),
-          experienceYears: item.experience.years.toString(),
-          highlights: item.experience.highlights.join(', '),
+          skills: Array.isArray(item.skills) ? item.skills.join(', ') : '',
+          experienceYears: item.experience?.years?.toString() || '',
+          highlights: Array.isArray(item.experience?.highlights) ? item.experience.highlights.join(', ') : '',
           notes: item.notes,
           rating: item.rating?.toString(),
         });
@@ -742,7 +742,7 @@ export default function TeamPage() {
                           <span>${member.salary.toLocaleString()}</span>
                         </div>
                       )}
-                      {Array.isArray(member.skills) && member.skills.length > 0 && (
+                      {member.skills && Array.isArray(member.skills) && member.skills.length > 0 && (
                         <div className="flex items-center">
                           <GraduationCap className="mr-2 h-4 w-4" />
                           <div className="flex flex-wrap gap-1">
@@ -1287,29 +1287,33 @@ export default function TeamPage() {
                           <span>{candidate.phone}</span>
                         </div>
                       )}
-                      <div className="flex items-center">
-                        <Briefcase className="mr-2 h-4 w-4" />
-                        <span>{candidate.experience.years} years experience</span>
-                      </div>
+                      {candidate.experience?.years && (
+                        <div className="flex items-center">
+                          <Briefcase className="mr-2 h-4 w-4" />
+                          <span>{candidate.experience.years} years experience</span>
+                        </div>
+                      )}
                       {candidate.rating && (
                         <div className="flex items-center">
                           <Star className="mr-2 h-4 w-4" />
                           <span>{candidate.rating}/5</span>
                         </div>
                       )}
-                      <div className="flex items-center">
-                        <GraduationCap className="mr-2 h-4 w-4" />
-                        <div className="flex flex-wrap gap-1">
-                          {candidate.skills.map((skill: string, index: number) => (
-                            <span
-                              key={index}
-                              className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
-                            >
-                              {skill}
-                            </span>
-                          ))}
+                      {candidate.skills && Array.isArray(candidate.skills) && candidate.skills.length > 0 && (
+                        <div className="flex items-center">
+                          <GraduationCap className="mr-2 h-4 w-4" />
+                          <div className="flex flex-wrap gap-1">
+                            {candidate.skills.map((skill: string, index: number) => (
+                              <span
+                                key={index}
+                                className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm"
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                       {candidate.notes && (
                         <p className="text-sm text-muted-foreground">
                           {candidate.notes}

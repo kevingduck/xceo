@@ -1,13 +1,20 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "@db";
 import { users } from "@db/schema";
 import { setupAuth } from "./auth";
+import { setupMiddleware, applyErrorHandling } from "./middleware";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Apply security and validation middleware first
+const validation = setupMiddleware(app);
+
+// Body parsing middleware (after security middleware)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Verify database connection on startup
 async function verifyDatabaseConnection() {
@@ -73,21 +80,8 @@ app.use((req, res, next) => {
     // Then register all other routes
     const server = registerRoutes(app);
 
-    // Global error handler with better logging
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-
-      // Log the full error for debugging
-      console.error("Application error:", {
-        status,
-        message,
-        stack: err.stack,
-        originalError: err
-      });
-
-      res.status(status).json({ message });
-    });
+    // Apply error handling middleware (must be last)
+    applyErrorHandling(app);
 
     // Setup Vite for development
     if (app.get("env") === "development") {
@@ -96,7 +90,7 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    const PORT = 5000;
+    const PORT = process.env.PORT || 3000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
     });

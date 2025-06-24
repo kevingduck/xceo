@@ -50,13 +50,10 @@ export default function ConfigureCEO() {
         description: "Your AI CEO settings have been updated successfully"
       });
 
-      // If we have history, go back to the previous page
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        // If no history (direct navigation), go to business page
-        setLocation("/business");
-      }
+      // Reload the entire app to ensure all data is refreshed
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({

@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DroppableColumn } from "@/components/widgets/droppable-column";
 import { Plus, Loader2 } from "lucide-react";
+import { TasksSkeleton } from "@/components/ui/page-skeleton";
 import type { Task } from "@db/schema";
 import { useGitHub } from "@/hooks/use-github";
 import { useToast } from "@/hooks/use-toast";
+
+// Lazy load the DnD components to reduce initial bundle size
+const DndContext = lazy(() => 
+  import("@dnd-kit/core").then(module => ({ default: module.DndContext }))
+);
+const DroppableColumn = lazy(() => 
+  import("@/components/widgets/droppable-column").then(module => ({ default: module.DroppableColumn }))
+);
+
+// Import DnD types and hooks separately for sensors
+import type { DragEndEvent } from "@dnd-kit/core";
+import { useSensor, useSensors, PointerSensor, TouchSensor } from "@dnd-kit/core";
 
 const statusMap = {
   todo: "todo",
@@ -191,28 +202,30 @@ export default function Tasks() {
         </Dialog>
       </div>
 
-      <DndContext 
-        sensors={sensors}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DroppableColumn
-            id="todo"
-            title="To Do"
-            tasks={todoTasks}
-          />
-          <DroppableColumn
-            id="in_progress"
-            title="In Progress"
-            tasks={inProgressTasks}
-          />
-          <DroppableColumn
-            id="done"
-            title="Done"
-            tasks={completedTasks}
-          />
-        </div>
-      </DndContext>
+      <Suspense fallback={<TasksSkeleton />}>
+        <DndContext 
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <DroppableColumn
+              id="todo"
+              title="To Do"
+              tasks={todoTasks}
+            />
+            <DroppableColumn
+              id="in_progress"
+              title="In Progress"
+              tasks={inProgressTasks}
+            />
+            <DroppableColumn
+              id="done"
+              title="Done"
+              tasks={completedTasks}
+            />
+          </div>
+        </DndContext>
+      </Suspense>
     </div>
   );
 }

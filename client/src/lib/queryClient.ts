@@ -1,4 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
+import { queryErrorHandler } from "@/hooks/use-error-handler";
+import { AsyncError } from "@/components/async-error-boundary";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -9,11 +11,21 @@ export const queryClient = new QueryClient({
         });
 
         if (!res.ok) {
-          if (res.status >= 500) {
-            throw new Error(`${res.status}: ${res.statusText}`);
+          const text = await res.text();
+          let errorMessage = `${res.status}: ${res.statusText}`;
+          
+          try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            errorMessage = text || errorMessage;
           }
 
-          throw new Error(`${res.status}: ${await res.text()}`);
+          throw new AsyncError(
+            errorMessage,
+            `HTTP_${res.status}`,
+            res.status
+          );
         }
 
         return res.json();
@@ -22,9 +34,11 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
+      onError: queryErrorHandler,
     },
     mutations: {
       retry: false,
+      onError: queryErrorHandler,
     }
   },
 });

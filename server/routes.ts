@@ -1131,7 +1131,12 @@ Culture & Values:
         where: eq(teamMembers.userId, req.user.id),
         orderBy: [desc(teamMembers.startDate)]
       });
-      res.json(members);
+      // Ensure skills is always an array
+      const sanitizedMembers = members.map(member => ({
+        ...member,
+        skills: Array.isArray(member.skills) ? member.skills : []
+      }));
+      res.json(sanitizedMembers);
     } catch (error) {
       console.error("Error fetching team members:", error);
       res.status(500).send("Failed to fetch team members");
@@ -1322,7 +1327,12 @@ Culture & Values:
         where: eq(teamMembers.userId, req.user.id),
         orderBy: [desc(teamMembers.startDate)]
       });
-      res.json(members);
+      // Ensure skills is always an array
+      const sanitizedMembers = members.map(member => ({
+        ...member,
+        skills: Array.isArray(member.skills) ? member.skills : []
+      }));
+      res.json(sanitizedMembers);
     } catch (error) {
       console.error("Error fetching team members:", error);
       res.status(500).send("Failed to fetch team members");
@@ -1544,11 +1554,17 @@ Culture & Values:
   app.get("/api/candidates", async (req, res) =>{
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
     try{
-      const candidates = await db.query.candidates.findMany({
+      const candidatesList = await db.query.candidates.findMany({
         where: eq(candidates.userId, req.user.id),
         orderBy: [desc(candidates.createdAt)]
       });
-      res.json(candidates);
+      // Ensure skills is always an array and experience is always an object
+      const sanitizedCandidates = candidatesList.map(candidate => ({
+        ...candidate,
+        skills: Array.isArray(candidate.skills) ? candidate.skills : [],
+        experience: candidate.experience || { years: 0, highlights: [] }
+      }));
+      res.json(sanitizedCandidates);
     } catch (error) {
       console.error("Error fetching candidates:", error);
       res.status(500).send("Failed to fetch candidates");

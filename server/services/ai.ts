@@ -241,83 +241,93 @@ Remember to use the available commands when appropriate.`;
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 1024,
       messages,
-      system: `You are a business management AI assistant. When a user requests task creation or business updates, use the appropriate commands to execute them. Format your commands like this:
-
-For creating tasks:
-<create_task>
-{
-  "title": "Simple task title without special characters",
-  "description": "Task description with proper line breaks.\\nUse \\n for new lines.\\nKeep formatting simple.",
-  "status": "todo"
-}
-</create_task>
-
-For updating business fields:
-<update_business_field>
-{
-  "section": "Section name",
-  "field": "Field name",
-  "value": "New value",
-  "type": "text"
-}
-</update_business_field>
-
-Important guidelines for task creation:
-1. Keep titles concise and avoid special characters
-2. For descriptions, use \\n for line breaks
-3. Ensure all JSON is properly escaped
-4. Status must be one of: todo, in_progress, done
-
-Always provide a response to the user explaining what you're doing.`,
+      system: `You are a business management AI assistant. Help users manage their business tasks and information effectively.`,
+      tools: [
+        {
+          type: "custom",
+          name: "create_task",
+          description: "Create a new task for the user",
+          input_schema: {
+            type: "object",
+            properties: {
+              title: {
+                type: "string",
+                description: "Simple task title without special characters"
+              },
+              description: {
+                type: "string",
+                description: "Task description with proper formatting"
+              },
+              status: {
+                type: "string",
+                enum: ["todo", "in_progress", "done"],
+                description: "Task status"
+              }
+            },
+            required: ["title"]
+          }
+        },
+        {
+          type: "custom",
+          name: "update_business_field",
+          description: "Update a business information field",
+          input_schema: {
+            type: "object",
+            properties: {
+              section: {
+                type: "string",
+                description: "Business section name"
+              },
+              field: {
+                type: "string",
+                description: "Field name to update"
+              },
+              value: {
+                type: ["string", "number", "array"],
+                description: "New value for the field"
+              },
+              type: {
+                type: "string",
+                enum: ["text", "number", "currency", "percentage", "date", "list"],
+                description: "Field type"
+              }
+            },
+            required: ["section", "field", "value", "type"]
+          }
+        }
+      ]
     });
 
     let createdTask = null;
     let updatedField = null;
     let responseContent = '';
 
+    // Handle text content
     for (const content of response.content) {
       if (content.type === 'text') {
-        let text = content.text;
-
-        const createTaskMatches = text.match(/<create_task>([\s\S]*?)<\/create_task>/g);
-        if (createTaskMatches) {
-          for (const match of createTaskMatches) {
-            try {
-              const jsonStr = match.replace(/<create_task>|<\/create_task>/g, '').trim();
-              const parameters = JSON.parse(jsonStr);
-              console.log("Executing create_task with parameters:", parameters);
-              createdTask = await executeTaskFunction(userId, {
-                name: 'create_task',
-                args: parameters
-              });
-              console.log("Task created successfully:", createdTask);
-              text = text.replace(match, '');
-            } catch (error) {
-              console.error("Error processing create_task command:", error);
-              text += `\n\nI encountered an error while trying to create the task: ${error instanceof Error ? error.message : "Unknown error"}`;
-            }
+        responseContent += content.text;
+      } else if (content.type === 'tool_use') {
+        // Handle tool calls
+        try {
+          if (content.name === 'create_task') {
+            console.log("Executing create_task with parameters:", content.input);
+            createdTask = await executeTaskFunction(userId, {
+              name: 'create_task',
+              args: content.input as any
+            });
+            console.log("Task created successfully:", createdTask);
+          } else if (content.name === 'update_business_field') {
+            console.log("Executing update_business_field with parameters:", content.input);
+            updatedField = await executeBusinessFieldUpdate(userId, {
+              name: 'update_business_field',
+              args: content.input as any
+            });
+            console.log("Business field updated successfully:", updatedField);
           }
+        } catch (error) {
+          console.error(`Error processing ${content.name} command:`, error);
+          responseContent += `\n\nI encountered an error while trying to ${content.name === 'create_task' ? 'create the task' : 'update the business field'}: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
-
-        const updateFieldMatches = text.match(/<update_business_field>([\s\S]*?)<\/update_business_field>/g);
-        if (updateFieldMatches) {
-          for (const match of updateFieldMatches) {
-            try {
-              const jsonStr = match.replace(/<update_business_field>|<\/update_business_field>/g, '').trim();
-              const parameters = JSON.parse(jsonStr);
-              updatedField = await executeBusinessFieldUpdate(userId, {
-                name: 'update_business_field',
-                args: parameters
-              });
-              text = text.replace(match, '');
-            } catch (error) {
-              console.error("Error processing update_business_field command:", error);
-              text += `\n\nI encountered an error while trying to update the business field: ${error instanceof Error ? error.message : "Unknown error"}`;
-            }
-          }
-        }
-
-        responseContent += text;
       }
     }
 

@@ -6,11 +6,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChatMessage } from "@/components/widgets/chat-message";
 import { Send, Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Chat() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { messages, sendMessage } = useAIChat();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +25,11 @@ export default function Chat() {
       setMessage("");
     } catch (error) {
       console.error("Failed to send message:", error);
+      toast({
+        title: "Error sending message",
+        description: error instanceof Error ? error.message : "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -32,9 +40,11 @@ export default function Chat() {
       <CardContent className="p-6 flex flex-col h-full">
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-4 mb-4">
-            {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
-            ))}
+            <ErrorBoundary level="component" isolate>
+              {messages.map((msg) => (
+                <ChatMessage key={msg.id} message={msg} />
+              ))}
+            </ErrorBoundary>
             {isLoading && (
               <div className="flex justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />

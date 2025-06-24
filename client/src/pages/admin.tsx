@@ -34,6 +34,8 @@ import { Button } from "@/components/ui/button";
 import { Search, Trash2, Edit, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SelectUser, BusinessInfo, ChatMessage, Task, Analytics } from "@db/schema";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorLogViewer } from "@/components/error-log-viewer";
 
 export default function AdminPage() {
   const [activeTable, setActiveTable] = useState("users");
@@ -85,6 +87,7 @@ export default function AdminPage() {
     { id: "tasks", name: "Tasks", data: tasks },
     { id: "chat_messages", name: "Chat Messages", data: chatMessages },
     { id: "analytics", name: "Analytics", data: analytics },
+    { id: "error_logs", name: "Error Logs", data: [] }, // Special tab for error logs
   ];
 
   const deleteItemMutation = useMutation({
@@ -247,17 +250,18 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <Tabs value={activeTable} onValueChange={setActiveTable}>
-            <div className="flex justify-between items-center mb-4">
-              <TabsList>
-                {tables.map((table) => (
-                  <TabsTrigger key={table.id} value={table.id}>
-                    {table.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+      <ErrorBoundary level="section">
+        <Card>
+          <CardContent className="p-6">
+            <Tabs value={activeTable} onValueChange={setActiveTable}>
+              <div className="flex justify-between items-center mb-4">
+                <TabsList>
+                  {tables.map((table) => (
+                    <TabsTrigger key={table.id} value={table.id}>
+                      {table.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -296,7 +300,10 @@ export default function AdminPage() {
 
             {tables.map((table) => (
               <TabsContent key={table.id} value={table.id}>
-                <Card>
+                {table.id === "error_logs" ? (
+                  <ErrorLogViewer />
+                ) : (
+                  <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       {table.name}
@@ -414,12 +421,14 @@ export default function AdminPage() {
                       </Table>
                     </ScrollArea>
                   </CardContent>
-                </Card>
+                  </Card>
+                )}
               </TabsContent>
             ))}
           </Tabs>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </ErrorBoundary>
     </div>
   );
 }
