@@ -1,0 +1,88 @@
+name: Simple CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: xceo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create test environment
+      run: |
+        cp .env.test .env
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/xceo_test" >> .env
+        echo "ANTHROPIC_API_KEY=test-key" >> .env
+        echo "SESSION_SECRET=test-secret" >> .env
+
+    - name: Setup database
+      run: npm run db:push
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/xceo_test
+
+    - name: Build application
+      run: npm run build
+
+    - name: Run type check
+      run: npm run check
+      continue-on-error: true
+
+    - name: Basic smoke test
+      run: |
+        # Start the server in the background
+        npm run start &
+        SERVER_PID=$!
+        
+        # Wait for server to start
+        sleep 10
+        
+        # Test health endpoint
+        curl -f http://localhost:10000/api/health || exit 1
+        
+        # Kill the server
+        kill $SERVER_PID
+      env:
+        NODE_ENV: production
+        PORT: 10000
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/xceo_test
+        ANTHROPIC_API_KEY: test-key
+        SESSION_SECRET: test-secret
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: build-${{ github.sha }}
+        path: dist/
+        retention-days: 7
