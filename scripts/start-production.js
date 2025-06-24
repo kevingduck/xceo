@@ -42,5 +42,5 @@ if (missingOptional.length > 0) {
 
 console.log('\n📦 Starting application...\n');
 
-// Start the application
-require('../dist/index.js');
+// Start the application using ES module import
+import('../dist/index.js');
