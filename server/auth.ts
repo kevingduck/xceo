@@ -54,13 +54,22 @@ export const isAdmin = (req: Express.Request, res: Express.Response, next: Expre
 };
 
 export function setupAuth(app: Express) {
+  // Ensure session secret is set in production
+  if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+    console.error('[SECURITY WARNING] SESSION_SECRET is not set in production!');
+    process.exit(1);
+  }
+
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || process.env.REPL_ID || "ai-ceo-platform",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict' // CSRF protection
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h

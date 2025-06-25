@@ -54,30 +54,15 @@ import type {
 } from "@db/schema";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ErrorLogViewer } from "@/components/error-log-viewer";
+import { AdminGuard } from "@/components/admin-guard";
 
-export default function AdminPage() {
+function AdminPageContent() {
   const [activeTable, setActiveTable] = useState("users");
   const [search, setSearch] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
   const [editingItem, setEditingItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Add auth check
-  useEffect(() => {
-    fetch('/api/user')
-      .then(res => res.json())
-      .then(user => {
-        if (!user || user.role !== 'admin') {
-          window.location.href = '/';
-          toast({
-            title: "Access Denied",
-            description: "You must be an admin to view this page",
-            variant: "destructive"
-          });
-        }
-      });
-  }, []);
 
   const { data: users = [] } = useQuery<SelectUser[]>({
     queryKey: ["/api/admin/users"],
@@ -558,5 +543,13 @@ export default function AdminPage() {
         </Card>
       </ErrorBoundary>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <AdminGuard>
+      <AdminPageContent />
+    </AdminGuard>
   );
 }

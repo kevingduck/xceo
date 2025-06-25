@@ -1245,8 +1245,11 @@ Culture & Values:
     }
   });
 
-  // Admin routes - properly secured with admin check
-  app.get("/api/admin/users", isAdmin, async (req, res) => {
+  // Import admin logger at the top of the file
+  const { adminActionLogger } = require("./middleware/admin-logger");
+
+  // Admin routes - properly secured with admin check and logging
+  app.get("/api/admin/users", isAdmin, adminActionLogger, async (req, res) => {
     try {
       const allUsers = await db
         .select()
