@@ -66,7 +66,7 @@ export default function Chat() {
               {optimisticMessage && (
                 <ChatMessage 
                   message={{
-                    id: 'optimistic',
+                    id: -1,
                     role: 'user',
                     content: optimisticMessage.content,
                     createdAt: new Date(optimisticMessage.timestamp),

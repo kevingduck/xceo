@@ -3,18 +3,18 @@ import { AuthenticationError, AuthorizationError } from '../utils/error-response
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
-    throw new AuthenticationError('You must be logged in to access this resource');
+    throw AuthenticationError('You must be logged in to access this resource');
   }
   next();
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
-    throw new AuthenticationError('You must be logged in to access this resource');
+    throw AuthenticationError('You must be logged in to access this resource');
   }
   
   if (req.user?.role !== 'admin') {
-    throw new AuthorizationError('Admin privileges required');
+    throw AuthorizationError('Admin privileges required');
   }
   
   next();

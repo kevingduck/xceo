@@ -119,7 +119,7 @@ class PerformanceMonitor {
       domContentLoaded: entry.domContentLoadedEventEnd - entry.domContentLoadedEventStart,
       pageLoad: entry.loadEventEnd - entry.loadEventStart,
       firstByte: entry.responseStart - entry.requestStart,
-      domInteractive: entry.domInteractive - entry.navigationStart
+      domInteractive: entry.domInteractive - entry.fetchStart
     };
 
     console.log('🚀 Navigation metrics:', metrics);
@@ -134,8 +134,8 @@ class PerformanceMonitor {
       const paintEntries = performance.getEntriesByType('paint');
       
       const metrics = {
-        totalLoadTime: navigation.loadEventEnd - navigation.navigationStart,
-        domContentLoaded: navigation.domContentLoadedEventEnd - navigation.navigationStart,
+        totalLoadTime: navigation.loadEventEnd - navigation.fetchStart,
+        domContentLoaded: navigation.domContentLoadedEventEnd - navigation.fetchStart,
         firstPaint: paintEntries.find(entry => entry.name === 'first-paint')?.startTime || 0,
         firstContentfulPaint: paintEntries.find(entry => entry.name === 'first-contentful-paint')?.startTime || 0
       };

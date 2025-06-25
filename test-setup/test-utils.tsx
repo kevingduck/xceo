@@ -101,7 +101,7 @@ export const mockSessionStorage = () => {
   }
 }
 
-export const waitFor = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 // Re-export everything
 export * from '@testing-library/react'

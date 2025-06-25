@@ -12,6 +12,7 @@ import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { processAIMessage } from "./services/ai";
 import { analyzeFeedback } from "./services/feedback-analysis";
+import { isAdmin } from "./auth";
 
 const offeringSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -54,11 +55,14 @@ const candidateSchema = z.object({
   email: z.string().email("Invalid email address"),
   phone: z.string().optional(),
   resumeUrl: z.string().url("Must be a valid URL").optional(),
-  skills: z.string(),
-  experienceYears: z.string(),
-  highlights: z.string(),
+  skills: z.array(z.string()).default([]),
+  experience: z.object({
+    years: z.number().min(0),
+    highlights: z.array(z.string()).default([])
+  }),
   notes: z.string().optional(),
-  rating: z.string().optional(),
+  rating: z.number().min(1).max(5).optional(),
+  status: z.enum(["applied", "screening", "interview", "offer", "hired", "rejected"]).default("applied")
 });
 const fieldSchema = z.object({
   value: z.union([z.string(), z.number(), z.array(z.string()), z.date()]),
@@ -75,11 +79,16 @@ const configureCEOSchema = z.object({
 
 const positionSchema = z.object({
   title: z.string().min(1, "Title is required"),
+  department: z.string().min(1, "Department is required"),
   description: z.string().min(1, "Description is required"),
-  requirements: z.string(),
-  minSalary: z.string().optional(),
-  maxSalary: z.string().optional(),
-  location: z.string().optional()
+  requirements: z.array(z.string()).default([]),
+  salary: z.object({
+    min: z.number().min(0),
+    max: z.number().min(0),
+    currency: z.string().default("USD")
+  }).optional(),
+  location: z.string().optional(),
+  remoteAllowed: z.boolean().default(false)
 })
 
 const packageSchema = z.object({
@@ -1573,11 +1582,11 @@ Culture & Values:
   app.get("/api/positions", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
     try {
-      const positions = await db.query.positions.findMany({
+      const userPositions = await db.query.positions.findMany({
         where: eq(positions.userId, req.user.id),
         orderBy: [desc(positions.createdAt)]
       });
-      res.json(positions);
+      res.json(userPositions);
     } catch (error) {
       console.error("Error fetching positions:", error);
       res.status(500).send("Failed to fetch positions");

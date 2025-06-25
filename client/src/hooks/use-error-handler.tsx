@@ -1,6 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { errorLogger } from "@/lib/error-logger";
 import { AsyncError } from "@/components/async-error-boundary";
+import { ToastAction } from "@/components/ui/toast";
 
 interface ErrorHandlerOptions {
   showToast?: boolean;
@@ -37,16 +38,20 @@ export function useErrorHandler() {
         title: isNetworkError ? "Connection Error" : "Error",
         description: errorInstance.message || fallbackMessage,
         variant: "destructive",
-        action: retry ? {
-          label: "Retry",
-          onClick: async () => {
-            try {
-              await retry();
-            } catch (retryError) {
-              handleError(retryError, { ...options, retry: undefined });
-            }
-          }
-        } : undefined
+        action: retry ? (
+          <ToastAction 
+            altText="Retry"
+            onClick={async () => {
+              try {
+                await retry();
+              } catch (retryError) {
+                handleError(retryError, { ...options, retry: undefined });
+              }
+            }}
+          >
+            Retry
+          </ToastAction>
+        ) : undefined
       });
     }
 

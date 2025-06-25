@@ -33,13 +33,13 @@ export default function AuthPage() {
     try {
       setIsLoading(true);
       if (isLogin) {
-        await login({ username, password });
+        await login({ username, password, role: "user" });
         toast({
           title: "Welcome back!",
           description: "Successfully logged in"
         });
       } else {
-        await register({ username, password });
+        await register({ username, password, role: "user" });
         toast({
           title: "Welcome!",
           description: "Account created successfully"

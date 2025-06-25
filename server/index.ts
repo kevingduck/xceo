@@ -23,7 +23,7 @@ async function verifyDatabaseConnection() {
     await db.select().from(users).limit(1);
     log("Database connection verified successfully");
   } catch (error) {
-    log("Failed to connect to database:", error);
+    log("Failed to connect to database:", String(error));
     throw error;
   }
 }
@@ -90,7 +90,7 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    const PORT = process.env.PORT || 3000;
+    const PORT = parseInt(process.env.PORT || "3000", 10);
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
     });

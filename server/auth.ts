@@ -1,6 +1,6 @@
 import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
-import { type Express } from "express";
+import { type Express, type Request, type Response } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
@@ -35,7 +35,7 @@ declare global {
 }
 
 // Add isAdmin middleware
-export const isAdmin = (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+export const isAdmin = (req: Request, res: Response, next: Function) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ 
       ok: false,

@@ -34,11 +34,9 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
-      onError: queryErrorHandler,
     },
     mutations: {
       retry: false,
-      onError: queryErrorHandler,
     }
   },
 });
