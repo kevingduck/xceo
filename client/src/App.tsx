@@ -24,6 +24,7 @@ import {
   LazyTeam,
   LazyAdmin,
   LazySettings,
+  LazyHelp,
   LazyNotFound,
   LazyOfferings,
   LazyResearch
@@ -116,6 +117,7 @@ function ProtectedRoutes() {
             <Route path="/research" component={LazyResearch} />
             <Route path="/configure-ceo" component={LazyConfigureCEO} />
             <Route path="/settings" component={LazySettings} />
+            <Route path="/help" component={LazyHelp} />
             {/* Only render admin route if user is admin */}
             {user.role === "admin" && <Route path="/admin" component={LazyAdmin} />}
             <Route component={LazyNotFound} />

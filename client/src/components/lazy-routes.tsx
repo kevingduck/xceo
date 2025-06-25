@@ -76,6 +76,12 @@ export const LazyConfigureCEO = createRouteLazyComponent(
   false
 );
 
+export const LazyHelp = createRouteLazyComponent(
+  () => import('@/pages/help'),
+  PageSkeleton,
+  false
+);
+
 export const LazyNotFound = createRouteLazyComponent(
   () => import('@/pages/not-found'),
   PageSkeleton,

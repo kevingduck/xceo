@@ -1244,11 +1244,8 @@ Culture & Values:
     }
   });
 
-  // Admin routes
-  app.get("/api/admin/users", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  // Admin routes - properly secured with admin check
+  app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
       const allUsers = await db
         .select()
@@ -1260,10 +1257,7 @@ Culture & Values:
     }
   });
 
-  app.get("/api/admin/business-info", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.get("/api/admin/business-info", isAdmin, async (req, res) => {
     try {
       const allBusinessInfo = await db
         .select()
@@ -1275,24 +1269,19 @@ Culture & Values:
     }
   });
 
-  app.get("/api/admin/tasks", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.get("/api/admin/tasks", isAdmin, async (req, res) => {
     try {
       const allTasks = await db
         .select()
         .from(tasks);
       res.json(allTasks);
-    } catch (error) {      console.error("Error fetching tasks:", error);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
 
-  app.get("/api/admin/chat-messages", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.get("/api/admin/chat-messages", isAdmin, async (req, res) => {
     try {
       const allMessages = await db
         .select()
@@ -1304,10 +1293,7 @@ Culture & Values:
     }
   });
 
-  app.get("/api/admin/analytics", async (req, res) =>{
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.get("/api/admin/analytics", isAdmin, async (req, res) =>{
     try {
       const allAnalytics = await db
         .select()
@@ -1778,10 +1764,7 @@ Culture & Values:
     }
   });
 
-  app.patch("/api/admin/:table/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.patch("/api/admin/:table/:id", isAdmin, async (req, res) => {
 
     const { table, id } = req.params;
     const tableId = parseInt(id);
@@ -1863,10 +1846,7 @@ Culture & Values:
     }
   });
 
-  app.delete("/api/admin/:table", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
+  app.delete("/api/admin/:table", isAdmin, async (req, res) => {
 
     const { table } = req.params;
     const { ids } = req.body;

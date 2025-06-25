@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, MessageSquare, CheckSquare, BarChart, Briefcase, Database, Settings, Users, Package, FlaskConical } from "lucide-react";
+import { LayoutDashboard, MessageSquare, CheckSquare, BarChart, Briefcase, Database, Settings, Users, Package, FlaskConical, HelpCircle } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
 
 const allNavItems = [
@@ -48,6 +48,11 @@ const allNavItems = [
     title: "Settings",
     href: "/settings",
     icon: Settings
+  },
+  {
+    title: "Help",
+    href: "/help",
+    icon: HelpCircle
   },
   {
     title: "Admin",
