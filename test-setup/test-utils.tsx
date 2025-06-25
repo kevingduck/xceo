@@ -49,10 +49,10 @@ export const createMockWebSocket = () => {
     OPEN: 1,
     CLOSING: 2,
     CLOSED: 3,
-    onopen: null,
-    onclose: null,
-    onmessage: null,
-    onerror: null,
+    onopen: null as any,
+    onclose: null as any,
+    onmessage: null as any,
+    onerror: null as any,
   }
   
   // Simulate connection opening

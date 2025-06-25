@@ -1,13 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError, z } from 'zod';
+import { AnyZodObject, ZodError, z, ZodSchema } from 'zod';
 import { AppError } from '../utils/error-response';
+
+// Extend Express Request to include file upload properties
+declare global {
+  namespace Express {
+    interface Request {
+      file?: any;
+      files?: any;
+    }
+  }
+}
 
 // Types for validation configuration
 interface ValidationConfig {
-  body?: AnyZodObject;
-  params?: AnyZodObject;
-  query?: AnyZodObject;
-  headers?: AnyZodObject;
+  body?: ZodSchema;
+  params?: ZodSchema;
+  query?: ZodSchema;
+  headers?: ZodSchema;
 }
 
 interface ValidationOptions {
@@ -139,27 +149,27 @@ export function validate(
 }
 
 // Convenience function for body-only validation
-export function validateBody(schema: AnyZodObject, options?: ValidationOptions) {
+export function validateBody(schema: ZodSchema, options?: ValidationOptions) {
   return validate({ body: schema }, options);
 }
 
 // Convenience function for params-only validation
-export function validateParams(schema: AnyZodObject, options?: ValidationOptions) {
+export function validateParams(schema: ZodSchema, options?: ValidationOptions) {
   return validate({ params: schema }, options);
 }
 
 // Convenience function for query-only validation
-export function validateQuery(schema: AnyZodObject, options?: ValidationOptions) {
+export function validateQuery(schema: ZodSchema, options?: ValidationOptions) {
   return validate({ query: schema }, options);
 }
 
 // Convenience function for headers-only validation
-export function validateHeaders(schema: AnyZodObject, options?: ValidationOptions) {
+export function validateHeaders(schema: ZodSchema, options?: ValidationOptions) {
   return validate({ headers: schema }, options);
 }
 
 // Middleware for PATCH requests that allows partial updates
-export function validatePartial(schema: AnyZodObject, options?: ValidationOptions) {
+export function validatePartial(schema: ZodSchema, options?: ValidationOptions) {
   return validate({ body: schema }, { ...options, allowPartial: true });
 }
 

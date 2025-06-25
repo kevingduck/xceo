@@ -442,10 +442,10 @@ Culture & Values:
           title: "Business Overview",
           defaultFields: {
             company_name: {
-              value: user.businessName,
-              type: "text",
+              value: user.businessName || "",
+              type: "text" as const,
               updatedAt: new Date().toISOString(),
-              updatedBy: "system"
+              updatedBy: "user" as const
             }
           }
         },

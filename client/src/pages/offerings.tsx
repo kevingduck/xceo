@@ -58,6 +58,39 @@ import {
   Check,
 } from "lucide-react";
 
+// Types
+interface Offering {
+  id: number;
+  name: string;
+  description: string;
+  type: 'product' | 'service';
+  status: 'active' | 'discontinued' | 'planned';
+  price?: {
+    amount: number;
+    currency: string;
+    billingCycle?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PricingTier {
+  id: number;
+  name: string;
+  description: string;
+  price: {
+    amount: number;
+    currency: string;
+    billingCycle?: string;
+    setupFee?: number;
+  };
+  offeringId: number;
+  features: string[];
+  isPopular?: boolean;
+  maxUsers?: number;
+  status: 'active' | 'archived';
+}
+
 // Form schemas
 const pricingTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -99,7 +132,7 @@ export default function OfferingsPage() {
   const [editingTier, setEditingTier] = useState<any>(null);
 
   // Queries
-  const { data: offerings = [], isLoading: isLoadingOfferings } = useQuery({
+  const { data: offerings = [], isLoading: isLoadingOfferings } = useQuery<Offering[]>({
     queryKey: ["/api/offerings"],
   });
 
@@ -113,7 +146,7 @@ export default function OfferingsPage() {
     enabled: !!selectedOffering,
   });
 
-  const { data: pricingTiers = [], isLoading: isLoadingTiers } = useQuery({
+  const { data: pricingTiers = [], isLoading: isLoadingTiers } = useQuery<PricingTier[]>({
     queryKey: ["/api/pricing-tiers"],
     enabled: !!selectedOffering,
   });
@@ -389,7 +422,7 @@ export default function OfferingsPage() {
         ) : offerings.length === 0 ? (
           <p className="col-span-full text-center py-4">No offerings yet. Add your first offering to get started.</p>
         ) : (
-          offerings.map((offering: any) => (
+          offerings.map((offering) => (
             <Card
               key={offering.id}
               className={`hover:shadow-md transition-shadow cursor-pointer ${
@@ -669,8 +702,8 @@ export default function OfferingsPage() {
         ) : (
           <div className="grid gap-4">
             {pricingTiers
-              .filter((tier: any) => tier.offeringId === selectedOffering.id)
-              .map((tier: any) => (
+              .filter((tier) => tier.offeringId === selectedOffering.id)
+              .map((tier) => (
                 <Card key={tier.id}>
                   <CardHeader className="space-y-2 p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

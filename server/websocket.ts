@@ -12,7 +12,7 @@ export function setupWebSocket(server: Server) {
     path: '/ws',
     host: '0.0.0.0',
     // Add this to handle the WebSocket upgrade specifically for our path
-    verifyClient: (info) => {
+    verifyClient: (info: any) => {
       // Skip Vite HMR WebSocket connections
       const isViteHMR = info.req.headers['sec-websocket-protocol'] === 'vite-hmr';
       return !isViteHMR;

@@ -295,14 +295,13 @@ async function executeCandidateOperation(userId: number, functionCall: Candidate
           name: data.name,
           email: data.email,
           positionId: data.positionId,
-          status: data.status || "new",
-          rating: data.rating || 0,
-          notes: data.notes || '',
-          resumeUrl: data.resumeUrl || '',
-          skills: data.skills?.join(", ") || '',
-          userId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          status: data.status || "applied",
+          rating: data.rating,
+          notes: data.notes,
+          resumeUrl: data.resumeUrl,
+          skills: data.skills || [],
+          experience: data.experience || { years: 0, highlights: [] },
+          userId
         })
         .returning();
 
@@ -318,7 +317,8 @@ async function executeCandidateOperation(userId: number, functionCall: Candidate
       if (data?.rating !== undefined) updateData.rating = data.rating;
       if (data?.notes !== undefined) updateData.notes = data.notes;
       if (data?.resumeUrl !== undefined) updateData.resumeUrl = data.resumeUrl;
-      if (data?.skills !== undefined) updateData.skills = data.skills.join(", ");
+      if (data?.skills !== undefined) updateData.skills = data.skills;
+      if (data?.experience !== undefined) updateData.experience = data.experience;
 
       const [updated] = await db.update(candidates)
         .set(updateData)
@@ -347,13 +347,13 @@ async function executeAnalyticsUpdate(userId: number, functionCall: AnalyticsCal
     const [analytic] = await db.insert(analytics)
       .values({
         userId,
-        metric,
-        value,
-        period: period || new Date().toISOString().split('T')[0],
-        category: category || 'business',
-        metadata: {},
-        createdAt: new Date(),
-        updatedAt: new Date()
+        type: category || 'business',
+        data: {
+          metric,
+          value,
+          period: period || new Date().toISOString().split('T')[0],
+          category: category || 'business'
+        }
       })
       .returning();
 
@@ -604,7 +604,6 @@ Use the appropriate tools to help manage the business effectively.`;
       system: `You are a business management AI assistant. Help users manage their business tasks, team, and information effectively. When users ask you to add team members, update compensation, or manage any business data, use the appropriate tools to make these changes.`,
       tools: [
         {
-          type: "custom",
           name: "create_task",
           description: "Create a new task for the user",
           input_schema: {
@@ -628,7 +627,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "update_business_field",
           description: "Update a business information field",
           input_schema: {
@@ -656,7 +654,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "manage_team_member",
           description: "Create, update, or delete team members",
           input_schema: {
@@ -690,7 +687,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "manage_position",
           description: "Create, update, or delete job positions",
           input_schema: {
@@ -725,7 +721,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "manage_candidate",
           description: "Create, update, or delete candidates",
           input_schema: {
@@ -759,7 +754,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "update_analytics",
           description: "Record analytics metrics",
           input_schema: {
@@ -786,7 +780,6 @@ Use the appropriate tools to help manage the business effectively.`;
           }
         },
         {
-          type: "custom",
           name: "query_data",
           description: "Query data from various tables",
           input_schema: {
@@ -921,7 +914,7 @@ Use the appropriate tools to help manage the business effectively.`;
       }
     }
     if (analyticsResult) {
-      responseContent += `\n\nI've recorded the ${analyticsResult.metric} metric with value ${analyticsResult.value}.`;
+      responseContent += `\n\nI've recorded the analytics data successfully.`;
     }
     if (queryResult && queryResult.length > 0) {
       responseContent += `\n\nI found ${queryResult.length} results from your query.`;

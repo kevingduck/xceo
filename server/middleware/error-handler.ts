@@ -56,8 +56,7 @@ export function errorHandler(
       err.errors.map(e => ({
         field: e.path.join('.') || 'unknown',
         message: e.message,
-        code: e.code,
-        received: e.received
+        code: e.code
       }))
     );
     return res.status(400).json(createErrorResponse(appError, req.path));

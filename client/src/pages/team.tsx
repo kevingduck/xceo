@@ -18,6 +18,54 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+
+// Types
+interface TeamMember {
+  id: number;
+  name: string;
+  role: string;
+  department?: string;
+  email: string;
+  startDate: string;
+  skills: string[];
+  bio?: string;
+  status: string;
+  salary?: number;
+}
+
+interface Position {
+  id: number;
+  title: string;
+  department: string;
+  description: string;
+  requirements: string[];
+  salary?: {
+    min: number;
+    max: number;
+    currency: string;
+  };
+  status: string;
+  priority?: string;
+  location?: string;
+  remoteAllowed?: boolean;
+}
+
+interface Candidate {
+  id: number;
+  positionId: number;
+  name: string;
+  email: string;
+  phone?: string;
+  resumeUrl?: string;
+  skills: string[];
+  experience: {
+    years: number;
+    highlights: string[];
+  };
+  status: string;
+  notes?: string;
+  rating?: number;
+}
 import {
   Users,
   UserPlus,
@@ -86,7 +134,7 @@ export default function TeamPage() {
   const [showCandidateForm, setShowCandidateForm] = useState(false);
 
   // Fetch data
-  const { data: teamMembers = [], isLoading: isLoadingTeam } = useQuery({
+  const { data: teamMembers = [], isLoading: isLoadingTeam } = useQuery<TeamMember[]>({
     queryKey: ["/api/team-members"],
     queryFn: async () => {
       const response = await fetch("/api/team-members", {
@@ -102,11 +150,11 @@ export default function TeamPage() {
     }
   });
 
-  const { data: positions, isLoading: isLoadingPositions } = useQuery({
+  const { data: positions = [], isLoading: isLoadingPositions } = useQuery<Position[]>({
     queryKey: ["/api/positions"],
   });
 
-  const { data: candidates, isLoading: isLoadingCandidates } = useQuery({
+  const { data: candidates = [], isLoading: isLoadingCandidates } = useQuery<Candidate[]>({
     queryKey: ["/api/candidates"],
   });
 
@@ -949,10 +997,10 @@ export default function TeamPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingPositions ? (
               <p>Loading positions...</p>
-            ) : positions?.length === 0 ? (
+            ) : positions.length === 0 ? (
               <p>No open positions.</p>
             ) : (
-              positions?.map((position: any) => (
+              positions.map((position) => (
                 <Card key={position.id}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">
@@ -1073,7 +1121,7 @@ export default function TeamPage() {
                                 onChange={(e) => field.onChange(parseInt(e.target.value))}
                               >
                                 <option value={0}>Select a position</option>
-                                {positions?.map((position: any) => (
+                                {positions.map((position) => (
                                   <option key={position.id} value={position.id}>
                                     {position.title}
                                   </option>
@@ -1249,10 +1297,10 @@ export default function TeamPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingCandidates ? (
               <p>Loading candidates...</p>
-            ) : candidates?.length === 0 ? (
+            ) : candidates.length === 0 ? (
               <p>No candidates yet.</p>
             ) : (
-              candidates?.map((candidate: any) => (
+              candidates.map((candidate) => (
                 <Card key={candidate.id}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">

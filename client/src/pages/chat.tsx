@@ -71,8 +71,7 @@ export default function Chat() {
                     content: optimisticMessage.content,
                     createdAt: new Date(optimisticMessage.timestamp),
                     metadata: {},
-                    businessId: 0,
-                    threadId: null
+                    userId: 0
                   }}
                 />
               )}
