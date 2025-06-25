@@ -5,7 +5,8 @@ import { db } from "@db";
 import {
   tasks, chatMessages, analytics, users, businessInfo, businessInfoHistory,
   teamMembers, positions, candidates, taskSchema, updateTaskSchema, offerings,
-  pricingTiers, offeringFeatures, roadmapItems, packages, packageOfferings
+  pricingTiers, offeringFeatures, roadmapItems, packages, packageOfferings,
+  pricingFeatures, conversationSummaries, attachments
 } from "@db/schema";
 import { eq, inArray, desc, and, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -1305,6 +1306,139 @@ Culture & Values:
     }
   });
 
+  // Additional admin routes for all tables
+  app.get("/api/admin/team-members", isAdmin, async (req, res) => {
+    try {
+      const allTeamMembers = await db
+        .select()
+        .from(teamMembers);
+      res.json(allTeamMembers);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      res.status(500).json({ message: "Failed to fetch team members" });
+    }
+  });
+
+  app.get("/api/admin/positions", isAdmin, async (req, res) => {
+    try {
+      const allPositions = await db
+        .select()
+        .from(positions);
+      res.json(allPositions);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      res.status(500).json({ message: "Failed to fetch positions" });
+    }
+  });
+
+  app.get("/api/admin/candidates", isAdmin, async (req, res) => {
+    try {
+      const allCandidates = await db
+        .select()
+        .from(candidates);
+      res.json(allCandidates);
+    } catch (error) {
+      console.error("Error fetching candidates:", error);
+      res.status(500).json({ message: "Failed to fetch candidates" });
+    }
+  });
+
+  app.get("/api/admin/offerings", isAdmin, async (req, res) => {
+    try {
+      const allOfferings = await db
+        .select()
+        .from(offerings);
+      res.json(allOfferings);
+    } catch (error) {
+      console.error("Error fetching offerings:", error);
+      res.status(500).json({ message: "Failed to fetch offerings" });
+    }
+  });
+
+  app.get("/api/admin/offering-features", isAdmin, async (req, res) => {
+    try {
+      const allOfferingFeatures = await db
+        .select()
+        .from(offeringFeatures);
+      res.json(allOfferingFeatures);
+    } catch (error) {
+      console.error("Error fetching offering features:", error);
+      res.status(500).json({ message: "Failed to fetch offering features" });
+    }
+  });
+
+  app.get("/api/admin/pricing-tiers", isAdmin, async (req, res) => {
+    try {
+      const allPricingTiers = await db
+        .select()
+        .from(pricingTiers);
+      res.json(allPricingTiers);
+    } catch (error) {
+      console.error("Error fetching pricing tiers:", error);
+      res.status(500).json({ message: "Failed to fetch pricing tiers" });
+    }
+  });
+
+  app.get("/api/admin/pricing-features", isAdmin, async (req, res) => {
+    try {
+      const allPricingFeatures = await db
+        .select()
+        .from(pricingFeatures);
+      res.json(allPricingFeatures);
+    } catch (error) {
+      console.error("Error fetching pricing features:", error);
+      res.status(500).json({ message: "Failed to fetch pricing features" });
+    }
+  });
+
+  app.get("/api/admin/roadmap-items", isAdmin, async (req, res) => {
+    try {
+      const allRoadmapItems = await db
+        .select()
+        .from(roadmapItems);
+      res.json(allRoadmapItems);
+    } catch (error) {
+      console.error("Error fetching roadmap items:", error);
+      res.status(500).json({ message: "Failed to fetch roadmap items" });
+    }
+  });
+
+  app.get("/api/admin/conversation-summaries", isAdmin, async (req, res) => {
+    try {
+      const allConversationSummaries = await db
+        .select()
+        .from(conversationSummaries);
+      res.json(allConversationSummaries);
+    } catch (error) {
+      console.error("Error fetching conversation summaries:", error);
+      res.status(500).json({ message: "Failed to fetch conversation summaries" });
+    }
+  });
+
+  app.get("/api/admin/business-info-history", isAdmin, async (req, res) => {
+    try {
+      const allBusinessInfoHistory = await db
+        .select()
+        .from(businessInfoHistory);
+      res.json(allBusinessInfoHistory);
+    } catch (error) {
+      console.error("Error fetching business info history:", error);
+      res.status(500).json({ message: "Failed to fetch business info history" });
+    }
+  });
+
+  app.get("/api/admin/attachments", isAdmin, async (req, res) => {
+    try {
+      const allAttachments = await db
+        .select()
+        .from(attachments);
+      res.json(allAttachments);
+    } catch (error) {
+      console.error("Error fetching attachments:", error);
+      res.status(500).json({ message: "Failed to fetch attachments" });
+    }
+  });
+
   // Team Members API with user filtering
   app.get("/api/team-members", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Not authenticated");
@@ -1831,6 +1965,62 @@ Culture & Values:
             .where(eq(candidates.id, tableId))
             .returning();
           break;
+        case 'offerings':
+          [result] = await db
+            .update(offerings)
+            .set(req.body)
+            .where(eq(offerings.id, tableId))
+            .returning();
+          break;
+        case 'offering_features':
+          [result] = await db
+            .update(offeringFeatures)
+            .set(req.body)
+            .where(eq(offeringFeatures.id, tableId))
+            .returning();
+          break;
+        case 'pricing_tiers':
+          [result] = await db
+            .update(pricingTiers)
+            .set(req.body)
+            .where(eq(pricingTiers.id, tableId))
+            .returning();
+          break;
+        case 'pricing_features':
+          [result] = await db
+            .update(pricingFeatures)
+            .set(req.body)
+            .where(eq(pricingFeatures.id, tableId))
+            .returning();
+          break;
+        case 'roadmap_items':
+          [result] = await db
+            .update(roadmapItems)
+            .set(req.body)
+            .where(eq(roadmapItems.id, tableId))
+            .returning();
+          break;
+        case 'conversation_summaries':
+          [result] = await db
+            .update(conversationSummaries)
+            .set(req.body)
+            .where(eq(conversationSummaries.id, tableId))
+            .returning();
+          break;
+        case 'business_info_history':
+          [result] = await db
+            .update(businessInfoHistory)
+            .set(req.body)
+            .where(eq(businessInfoHistory.id, tableId))
+            .returning();
+          break;
+        case 'attachments':
+          [result] = await db
+            .update(attachments)
+            .set(req.body)
+            .where(eq(attachments.id, tableId))
+            .returning();
+          break;
         default:
           return res.status(400).json({ message: "Invalid table name" });
       }
@@ -1921,6 +2111,64 @@ Culture & Values:
           result = await db
             .delete(candidates)
             .where(inArray(candidates.id, ids))
+            .returning();
+          break;
+        case 'offerings':
+          // First delete related data
+          await Promise.all([
+            db.delete(offeringFeatures).where(inArray(offeringFeatures.offeringId, ids)),
+            db.delete(pricingTiers).where(inArray(pricingTiers.offeringId, ids)),
+            db.delete(roadmapItems).where(inArray(roadmapItems.offeringId, ids))
+          ]);
+          result = await db
+            .delete(offerings)
+            .where(inArray(offerings.id, ids))
+            .returning();
+          break;
+        case 'offering_features':
+          result = await db
+            .delete(offeringFeatures)
+            .where(inArray(offeringFeatures.id, ids))
+            .returning();
+          break;
+        case 'pricing_tiers':
+          // First delete pricing features
+          await db
+            .delete(pricingFeatures)
+            .where(inArray(pricingFeatures.tierId, ids));
+          result = await db
+            .delete(pricingTiers)
+            .where(inArray(pricingTiers.id, ids))
+            .returning();
+          break;
+        case 'pricing_features':
+          result = await db
+            .delete(pricingFeatures)
+            .where(inArray(pricingFeatures.id, ids))
+            .returning();
+          break;
+        case 'roadmap_items':
+          result = await db
+            .delete(roadmapItems)
+            .where(inArray(roadmapItems.id, ids))
+            .returning();
+          break;
+        case 'conversation_summaries':
+          result = await db
+            .delete(conversationSummaries)
+            .where(inArray(conversationSummaries.id, ids))
+            .returning();
+          break;
+        case 'business_info_history':
+          result = await db
+            .delete(businessInfoHistory)
+            .where(inArray(businessInfoHistory.id, ids))
+            .returning();
+          break;
+        case 'attachments':
+          result = await db
+            .delete(attachments)
+            .where(inArray(attachments.id, ids))
             .returning();
           break;
         default:

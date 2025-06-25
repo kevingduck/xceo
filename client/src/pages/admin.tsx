@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -31,9 +32,26 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Trash2, Edit, Save, X } from "lucide-react";
+import { Search, Trash2, Edit, Save, X, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { SelectUser, BusinessInfo, ChatMessage, Task, Analytics } from "@db/schema";
+import type { 
+  SelectUser, 
+  BusinessInfo, 
+  ChatMessage, 
+  Task, 
+  Analytics,
+  TeamMember,
+  Position,
+  Candidate,
+  Offering,
+  PricingTier,
+  Attachment,
+  ConversationSummary,
+  BusinessInfoHistory,
+  OfferingFeature,
+  RoadmapItem,
+  PricingFeature
+} from "@db/schema";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ErrorLogViewer } from "@/components/error-log-viewer";
 
@@ -81,12 +99,67 @@ export default function AdminPage() {
     queryKey: ["/api/admin/analytics"],
   });
 
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({
+    queryKey: ["/api/admin/team-members"],
+  });
+
+  const { data: positions = [] } = useQuery<Position[]>({
+    queryKey: ["/api/admin/positions"],
+  });
+
+  const { data: candidates = [] } = useQuery<Candidate[]>({
+    queryKey: ["/api/admin/candidates"],
+  });
+
+  const { data: offerings = [] } = useQuery<Offering[]>({
+    queryKey: ["/api/admin/offerings"],
+  });
+
+  const { data: pricingTiers = [] } = useQuery<PricingTier[]>({
+    queryKey: ["/api/admin/pricing-tiers"],
+  });
+
+  const { data: conversationSummaries = [] } = useQuery<ConversationSummary[]>({
+    queryKey: ["/api/admin/conversation-summaries"],
+  });
+
+  const { data: businessInfoHistory = [] } = useQuery<BusinessInfoHistory[]>({
+    queryKey: ["/api/admin/business-info-history"],
+  });
+
+  const { data: attachments = [] } = useQuery<Attachment[]>({
+    queryKey: ["/api/admin/attachments"],
+  });
+
+  const { data: offeringFeatures = [] } = useQuery<OfferingFeature[]>({
+    queryKey: ["/api/admin/offering-features"],
+  });
+
+  const { data: roadmapItems = [] } = useQuery<RoadmapItem[]>({
+    queryKey: ["/api/admin/roadmap-items"],
+  });
+
+  const { data: pricingFeatures = [] } = useQuery<PricingFeature[]>({
+    queryKey: ["/api/admin/pricing-features"],
+  });
+
   const tables = [
     { id: "users", name: "Users", data: users },
     { id: "business_info", name: "Business Info", data: businessInfo },
+    { id: "business_info_history", name: "Business Info History", data: businessInfoHistory },
     { id: "tasks", name: "Tasks", data: tasks },
     { id: "chat_messages", name: "Chat Messages", data: chatMessages },
+    { id: "conversation_summaries", name: "Conversation Summaries", data: conversationSummaries },
     { id: "analytics", name: "Analytics", data: analytics },
+    { id: "team_members", name: "Team Members", data: teamMembers },
+    { id: "positions", name: "Positions", data: positions },
+    { id: "candidates", name: "Candidates", data: candidates },
+    { id: "offerings", name: "Offerings", data: offerings },
+    { id: "offering_features", name: "Offering Features", data: offeringFeatures },
+    { id: "pricing_tiers", name: "Pricing Tiers", data: pricingTiers },
+    { id: "pricing_features", name: "Pricing Features", data: pricingFeatures },
+    { id: "roadmap_items", name: "Roadmap Items", data: roadmapItems },
+    { id: "attachments", name: "Attachments", data: attachments },
     { id: "error_logs", name: "Error Logs", data: [] }, // Special tab for error logs
   ];
 
@@ -184,25 +257,19 @@ export default function AdminPage() {
   const handleSaveEdit = (item: any) => {
     const { id, ...data } = item;
 
-    // If we're editing a user, only send necessary fields
-    if (activeTable === 'users') {
-      const { password, createdAt, updatedAt, ...userUpdateData } = data;
-      updateItemMutation.mutate({
-        table: activeTable,
-        id,
-        data: userUpdateData
-      });
-    } else {
-      updateItemMutation.mutate({
-        table: activeTable,
-        id,
-        data
-      });
-    }
+    // Remove read-only fields before updating
+    const { createdAt, updatedAt, password, ...updateData } = data;
+    
+    updateItemMutation.mutate({
+      table: activeTable,
+      id,
+      data: updateData
+    });
   };
 
   const renderValue = (value: any, item: any, key: string) => {
     if (editingItem?.id === item.id) {
+      // Special handling for known fields
       if (key === 'role') {
         return (
           <select
@@ -215,12 +282,58 @@ export default function AdminPage() {
           </select>
         );
       }
+      if (key === 'status' && activeTable === 'positions') {
+        return (
+          <select
+            value={editingItem[key]}
+            onChange={(e) => setEditingItem({ ...editingItem, [key]: e.target.value })}
+            className="w-full p-2 border rounded"
+          >
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+            <option value="on_hold">On Hold</option>
+          </select>
+        );
+      }
+      if (key === 'status' && activeTable === 'candidates') {
+        return (
+          <select
+            value={editingItem[key]}
+            onChange={(e) => setEditingItem({ ...editingItem, [key]: e.target.value })}
+            className="w-full p-2 border rounded"
+          >
+            <option value="new">New</option>
+            <option value="screening">Screening</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        );
+      }
       if (typeof value === 'boolean') {
         return (
           <input
             type="checkbox"
             checked={editingItem[key]}
             onChange={(e) => setEditingItem({ ...editingItem, [key]: e.target.checked })}
+          />
+        );
+      }
+      if (typeof value === 'object') {
+        return (
+          <Textarea
+            value={JSON.stringify(editingItem[key], null, 2)}
+            onChange={(e) => {
+              try {
+                const parsed = JSON.parse(e.target.value);
+                setEditingItem({ ...editingItem, [key]: parsed });
+              } catch {
+                // Keep the string value if it's not valid JSON yet
+              }
+            }}
+            className="w-full font-mono text-xs"
+            rows={3}
           />
         );
       }
@@ -235,9 +348,22 @@ export default function AdminPage() {
       }
     }
 
-    if (value === null || value === undefined) return "-";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    if (typeof value === "object") return JSON.stringify(value);
+    // Display logic
+    if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>;
+    if (typeof value === "boolean") {
+      return <Badge variant={value ? "default" : "secondary"}>{value ? "Yes" : "No"}</Badge>;
+    }
+    if (value instanceof Date) {
+      return new Date(value).toLocaleString();
+    }
+    if (typeof value === "object") {
+      return (
+        <pre className="text-xs bg-muted p-1 rounded max-w-xs overflow-auto">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      );
+    }
+    if (key === 'password') return "••••••••";
     return value.toString();
   };
 
@@ -254,14 +380,16 @@ export default function AdminPage() {
         <Card>
           <CardContent className="p-6">
             <Tabs value={activeTable} onValueChange={setActiveTable}>
-              <div className="flex justify-between items-center mb-4">
-                <TabsList>
-                  {tables.map((table) => (
-                    <TabsTrigger key={table.id} value={table.id}>
-                      {table.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+              <div className="flex justify-between items-center mb-4 gap-4">
+                <ScrollArea className="flex-1">
+                  <TabsList className="flex w-max">
+                    {tables.map((table) => (
+                      <TabsTrigger key={table.id} value={table.id} className="whitespace-nowrap">
+                        {table.name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </ScrollArea>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
