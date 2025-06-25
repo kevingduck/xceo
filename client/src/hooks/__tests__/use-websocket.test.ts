@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useWebSocket } from '../use-websocket'
-import { createMockWebSocket } from '@test-setup'
+import { createMockWebSocket } from '../../../../test-setup/test-utils'
 
 // Mock WebSocket
 const mockWebSocket = vi.fn()
