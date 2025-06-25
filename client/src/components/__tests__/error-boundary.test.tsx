@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '../../../../test-setup/test-utils'
-import { ErrorBoundary, withErrorBoundary, useErrorHandler } from '../error-boundary'
+import { ErrorBoundary, withErrorBoundary } from '../error-boundary'
+import { useErrorHandler } from '@/hooks/use-error-handler'
 import { errorLogger } from '@/lib/error-logger'
 
 // Mock the error logger
