@@ -357,7 +357,7 @@ export const customValidations = {
   }),
 
   // Validate date ranges
-  validateDateRange: (req: Request, res: Response, next) => {
+  validateDateRange: (req: Request, res: Response, next: NextFunction) => {
     const { startDate, endDate } = req.query;
     
     if (startDate && endDate) {

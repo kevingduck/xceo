@@ -42,7 +42,7 @@ router.get(
         count: userTasks.length,
       });
     } catch (error) {
-      throw new DatabaseError('Failed to fetch tasks', { error: error.message });
+      throw DatabaseError('Failed to fetch tasks', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   })
 );
@@ -54,7 +54,7 @@ router.post(
     // Validate request body
     const result = createTaskSchema.safeParse(req.body);
     if (!result.success) {
-      throw new ValidationError('Invalid task data', result.error.errors);
+      throw ValidationError('Invalid task data', result.error.errors);
     }
 
     try {
@@ -74,7 +74,7 @@ router.post(
         message: 'Task created successfully',
       });
     } catch (error) {
-      throw new DatabaseError('Failed to create task', { error: error.message });
+      throw DatabaseError('Failed to create task', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   })
 );
@@ -85,13 +85,13 @@ router.patch(
   asyncHandler(async (req, res) => {
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError('Invalid task ID');
+      throw ValidationError('Invalid task ID');
     }
 
     // Validate request body
     const result = updateTaskSchema.safeParse(req.body);
     if (!result.success) {
-      throw new ValidationError('Invalid update data', result.error.errors);
+      throw ValidationError('Invalid update data', result.error.errors);
     }
 
     // Check if task exists and belongs to user
@@ -102,11 +102,11 @@ router.patch(
       .limit(1);
 
     if (!existingTask) {
-      throw new NotFoundError('Task');
+      throw NotFoundError('Task');
     }
 
     if (existingTask.userId !== req.user!.id) {
-      throw new AuthorizationError('You can only update your own tasks');
+      throw AuthorizationError('You can only update your own tasks');
     }
 
     try {
@@ -125,7 +125,7 @@ router.patch(
         message: 'Task updated successfully',
       });
     } catch (error) {
-      throw new DatabaseError('Failed to update task', { error: error.message });
+      throw DatabaseError('Failed to update task', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   })
 );
@@ -136,7 +136,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const taskId = parseInt(req.params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError('Invalid task ID');
+      throw ValidationError('Invalid task ID');
     }
 
     // Check if task exists and belongs to user
@@ -147,11 +147,11 @@ router.delete(
       .limit(1);
 
     if (!existingTask) {
-      throw new NotFoundError('Task');
+      throw NotFoundError('Task');
     }
 
     if (existingTask.userId !== req.user!.id) {
-      throw new AuthorizationError('You can only delete your own tasks');
+      throw AuthorizationError('You can only delete your own tasks');
     }
 
     try {
@@ -162,7 +162,7 @@ router.delete(
         message: 'Task deleted successfully',
       });
     } catch (error) {
-      throw new DatabaseError('Failed to delete task', { error: error.message });
+      throw DatabaseError('Failed to delete task', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   })
 );

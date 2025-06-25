@@ -65,13 +65,17 @@ type PositionCall = {
     data?: {
       title?: string;
       department?: string;
-      status?: "open" | "closed" | "on_hold";
-      priority?: "low" | "medium" | "high" | "urgent";
-      requirements?: string[];
-      compensation?: string;
-      location?: string;
-      type?: "full_time" | "part_time" | "contract" | "internship";
       description?: string;
+      requirements?: string[];
+      salary?: {
+        min: number;
+        max: number;
+        currency: string;
+      };
+      status?: string;
+      priority?: string;
+      location?: string;
+      remoteAllowed?: boolean;
     };
   };
 };
@@ -85,11 +89,15 @@ type CandidateCall = {
       name?: string;
       email?: string;
       positionId?: number;
-      status?: "new" | "screening" | "interview" | "offer" | "hired" | "rejected";
+      status?: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
       rating?: number;
       notes?: string;
       resumeUrl?: string;
       skills?: string[];
+      experience?: {
+        years: number;
+        highlights: string[];
+      };
     };
   };
 };
@@ -174,15 +182,13 @@ async function executeTeamMemberOperation(userId: number, functionCall: TeamMemb
         .values({
           name: data.name,
           role: data.role,
-          department: data.department || '',
-          email: data.email || '',
-          bio: data.bio || '',
-          skills: data.skills?.join(", ") || '',
-          highlights: data.highlights?.join(", ") || '',
-          imageUrl: data.imageUrl || '',
-          userId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          department: data.department,
+          email: data.email,
+          startDate: new Date(),
+          bio: data.bio,
+          skills: data.skills || [],
+          status: 'active',
+          userId
         })
         .returning();
 
@@ -196,9 +202,8 @@ async function executeTeamMemberOperation(userId: number, functionCall: TeamMemb
       if (data?.department !== undefined) updateData.department = data.department;
       if (data?.email !== undefined) updateData.email = data.email;
       if (data?.bio !== undefined) updateData.bio = data.bio;
-      if (data?.skills !== undefined) updateData.skills = data.skills.join(", ");
-      if (data?.highlights !== undefined) updateData.highlights = data.highlights.join(", ");
-      if (data?.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+      if (data?.skills !== undefined) updateData.skills = data.skills;
+      if (data?.department !== undefined) updateData.department = data.department;
 
       const [updated] = await db.update(teamMembers)
         .set(updateData)
@@ -233,16 +238,14 @@ async function executePositionOperation(userId: number, functionCall: PositionCa
         .values({
           title: data.title,
           department: data.department,
+          description: data.description || '',
+          requirements: data.requirements || [],
           status: data.status || "open",
           priority: data.priority || "medium",
-          requirements: data.requirements?.join(", ") || '',
-          compensation: data.compensation || '',
-          location: data.location || '',
-          type: data.type || "full_time",
-          description: data.description || '',
-          userId,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          location: data.location,
+          remoteAllowed: data.remoteAllowed || false,
+          salary: data.salary,
+          userId
         })
         .returning();
 
@@ -255,10 +258,10 @@ async function executePositionOperation(userId: number, functionCall: PositionCa
       if (data?.department !== undefined) updateData.department = data.department;
       if (data?.status !== undefined) updateData.status = data.status;
       if (data?.priority !== undefined) updateData.priority = data.priority;
-      if (data?.requirements !== undefined) updateData.requirements = data.requirements.join(", ");
-      if (data?.compensation !== undefined) updateData.compensation = data.compensation;
+      if (data?.requirements !== undefined) updateData.requirements = data.requirements;
+      if (data?.salary !== undefined) updateData.salary = data.salary;
       if (data?.location !== undefined) updateData.location = data.location;
-      if (data?.type !== undefined) updateData.type = data.type;
+      if (data?.remoteAllowed !== undefined) updateData.remoteAllowed = data.remoteAllowed;
       if (data?.description !== undefined) updateData.description = data.description;
 
       const [updated] = await db.update(positions)
@@ -883,9 +886,9 @@ Use the appropriate tools to help manage the business effectively.`;
     if (teamMemberResult) {
       const action = teamMemberResult.action;
       const member = teamMemberResult.data;
-      if (action === 'created') {
+      if (action === 'created' && 'name' in member) {
         responseContent += `\n\nI've added ${member.name} to the team as ${member.role} in the ${member.department} department.`;
-      } else if (action === 'updated') {
+      } else if (action === 'updated' && 'name' in member) {
         responseContent += `\n\nI've updated ${member.name}'s information.`;
       } else if (action === 'deleted') {
         responseContent += `\n\nI've removed the team member from the system.`;
@@ -894,9 +897,9 @@ Use the appropriate tools to help manage the business effectively.`;
     if (positionResult) {
       const action = positionResult.action;
       const position = positionResult.data;
-      if (action === 'created') {
+      if (action === 'created' && 'title' in position) {
         responseContent += `\n\nI've created a new ${position.title} position in the ${position.department} department.`;
-      } else if (action === 'updated') {
+      } else if (action === 'updated' && 'title' in position) {
         responseContent += `\n\nI've updated the ${position.title} position.`;
       } else if (action === 'deleted') {
         responseContent += `\n\nI've removed the position from the system.`;
@@ -905,9 +908,9 @@ Use the appropriate tools to help manage the business effectively.`;
     if (candidateResult) {
       const action = candidateResult.action;
       const candidate = candidateResult.data;
-      if (action === 'created') {
+      if (action === 'created' && 'name' in candidate) {
         responseContent += `\n\nI've added ${candidate.name} as a candidate.`;
-      } else if (action === 'updated') {
+      } else if (action === 'updated' && 'name' in candidate) {
         responseContent += `\n\nI've updated ${candidate.name}'s information.`;
       } else if (action === 'deleted') {
         responseContent += `\n\nI've removed the candidate from the system.`;

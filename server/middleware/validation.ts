@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError, z, ZodSchema } from 'zod';
+import { AnyZodObject, ZodError, z, ZodSchema, ZodObject } from 'zod';
 import { AppError } from '../utils/error-response';
 
 // Extend Express Request to include file upload properties
@@ -54,7 +54,7 @@ export function validate(
           let schema = config.body;
           
           // For PATCH requests, make all fields optional if allowPartial is true
-          if (allowPartial && req.method === 'PATCH') {
+          if (allowPartial && req.method === 'PATCH' && schema instanceof ZodObject) {
             schema = schema.partial();
           }
 

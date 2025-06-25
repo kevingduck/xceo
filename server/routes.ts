@@ -452,22 +452,22 @@ Culture & Values:
         {
           section: "Market Intelligence",
           title: "Market Intelligence",
-          defaultFields: {}
+          defaultFields: null
         },
         {
           section: "Financial Overview",
           title: "Financial Overview",
-          defaultFields: {}
+          defaultFields: null
         },
         {
           section: "Operations",
           title: "Operations",
-          defaultFields: {}
+          defaultFields: null
         },
         {
           section: "Human Capital",
           title: "Human Capital",
-          defaultFields: {}
+          defaultFields: null
         }
       ];
       // Get existing sections
@@ -1224,11 +1224,7 @@ Culture & Values:
       const [candidate] = await db.insert(candidates)
         .values({
           ...result.data,
-          userId: req.user.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          skills: [result.data.skills],
-          experience: result.data.experienceYears
+          userId: req.user.id
         })
         .returning();
 
@@ -2222,8 +2218,7 @@ Culture & Values:
         .update(teamMembers)
         .set({
           ...result.data,
-          updatedAt: new Date(),
-          skills: Array.isArray(result.data.skills) ? result.data.skills : result.data.skills?.split(',').map(s => s.trim()),
+          updatedAt: new Date()
         })
         .where(eq(teamMembers.id, teamMemberId))
         .returning();
@@ -2262,13 +2257,7 @@ Culture & Values:
         .update(positions)
         .set({
           ...result.data,
-          updatedAt: new Date(),
-          requirements: Array.isArray(result.data.requirements) ? result.data.requirements : result.data.requirements?.split(',').map(r => r.trim()),
-          salary: result.data.minSalary && result.data.maxSalary ? {
-            min: parseInt(result.data.minSalary),
-            max: parseInt(result.data.maxSalary),
-            currency: "USD"
-          } : undefined
+          updatedAt: new Date()
         })
         .where(eq(positions.id, positionId))
         .returning();
@@ -2307,13 +2296,7 @@ Culture & Values:
         .update(candidates)
         .set({
           ...result.data,
-          updatedAt: new Date(),
-          skills: Array.isArray(result.data.skills) ? result.data.skills : result.data.skills?.split(',').map(s => s.trim()),
-          experience: result.data.experienceYears ? {
-            years: parseInt(result.data.experienceYears),
-            highlights: result.data.highlights?.split(',').map(h => h.trim()) || []
-          } : undefined,
-          rating: result.data.rating ? parseInt(result.data.rating) : undefined
+          updatedAt: new Date()
         })
         .where(eq(candidates.id, candidateId))
         .returning();
