@@ -59,11 +59,6 @@ export function TasksExample() {
       }
       return failureCount < 3;
     },
-    onError: (error) => {
-      handleApiError(error, {
-        fallbackMessage: 'Failed to load tasks',
-      });
-    },
   });
 
   // Create task mutation with error handling

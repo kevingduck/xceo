@@ -1,9 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { useUser } from "@/hooks/use-user";
-import { Navigate } from "wouter";
+import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
 
 interface AdminGuardProps {
   children: ReactNode;
@@ -12,6 +11,7 @@ interface AdminGuardProps {
 export function AdminGuard({ children }: AdminGuardProps) {
   const { user, isLoading } = useUser();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     // Log admin access attempts
@@ -23,6 +23,17 @@ export function AdminGuard({ children }: AdminGuardProps) {
     }
   }, [user, isLoading]);
 
+  useEffect(() => {
+    if (!isLoading && (!user || user.role !== 'admin')) {
+      toast({
+        title: "Access Denied",
+        description: "You must be an admin to view this page",
+        variant: "destructive"
+      });
+      setLocation("/");
+    }
+  }, [user, isLoading, toast, setLocation]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -32,13 +43,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
   }
 
   if (!user || user.role !== 'admin') {
-    toast({
-      title: "Access Denied",
-      description: "You must be an admin to view this page",
-      variant: "destructive"
-    });
-    
-    return <Navigate to="/" replace />;
+    return null;
   }
 
   return <>{children}</>;

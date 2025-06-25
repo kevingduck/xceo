@@ -1,0 +1,114 @@
+name: CI Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_ENV: test
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/xceo_test
+  ANTHROPIC_API_KEY: test-api-key
+  SESSION_SECRET: test-secret-key
+
+jobs:
+  check:
+    name: Run All Checks
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: xceo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/xceo_test" >> .env
+
+    - name: Setup database
+      run: npm run db:push
+
+    - name: Run type checking
+      id: typecheck
+      run: |
+        if npm run check; then
+          echo "✅ Type checking passed"
+          echo "typecheck=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Type checking failed"
+          echo "typecheck=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Run tests
+      id: tests
+      run: |
+        if npm run test:run && npm run test:server:run; then
+          echo "✅ All tests passed"
+          echo "tests=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Some tests failed"
+          echo "tests=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Build application
+      id: build
+      run: |
+        if npm run build; then
+          echo "✅ Build succeeded"
+          echo "build=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Build failed"
+          echo "build=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Summary
+      if: always()
+      run: |
+        echo "## CI Check Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ steps.typecheck.outputs.typecheck }}" == "success" ]]; then
+          echo "✅ Type checking: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Type checking: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.tests.outputs.tests }}" == "success" ]]; then
+          echo "✅ Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [[ "${{ steps.build.outputs.build }}" == "success" ]]; then
+          echo "✅ Build: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Build: Failed" >> $GITHUB_STEP_SUMMARY
+        fi

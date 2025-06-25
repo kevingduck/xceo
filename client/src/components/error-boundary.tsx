@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
         errorBoundary: true,
         errorCount: this.state.errorCount,
       },
-      errorInfo.componentStack
+      errorInfo?.componentStack || ''
     );
   };
 
