@@ -2580,6 +2580,7 @@ Culture & Values:
       const [pkg] = await db.insert(packages)
         .values({
           ...result.data,
+          slug: result.data.name.toLowerCase().replace(/\s+/g, '-'),
           userId: req.user.id
         })
         .returning();
@@ -2802,9 +2803,11 @@ Culture & Values:
       const [tier] = await db.insert(pricingTiers)
         .values({
           ...result.data,
-          userId: req.user.id,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          price: {
+            ...result.data.price,
+            billingCycle: result.data.price.billingCycle || 'monthly'
+          },
+          userId: req.user.id
         })
         .returning();
 
@@ -2841,12 +2844,21 @@ Culture & Values:
       if (!existingTier) return res.status(404).json({ error: "Pricing tier not found" });
       if (existingTier.userId !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
 
+      const updateData: any = {
+        ...result.data,
+        updatedAt: new Date()
+      };
+      
+      if (result.data.price) {
+        updateData.price = {
+          ...result.data.price,
+          billingCycle: result.data.price.billingCycle || existingTier.price.billingCycle || 'monthly'
+        };
+      }
+
       const [updatedTier] = await db
         .update(pricingTiers)
-        .set({
-          ...result.data,
-          updatedAt: new Date()
-        })
+        .set(updateData)
         .where(eq(pricingTiers.id, tierId))
         .returning();
 

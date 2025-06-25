@@ -183,7 +183,7 @@ async function executeTeamMemberOperation(userId: number, functionCall: TeamMemb
           name: data.name,
           role: data.role,
           department: data.department,
-          email: data.email,
+          email: data.email || `${data.name.toLowerCase().replace(/\s+/g, '.')}@company.com`,
           startDate: new Date(),
           bio: data.bio,
           skills: data.skills || [],
@@ -887,7 +887,7 @@ Use the appropriate tools to help manage the business effectively.`;
       const action = teamMemberResult.action;
       const member = teamMemberResult.data;
       if (action === 'created' && 'name' in member) {
-        responseContent += `\n\nI've added ${member.name} to the team as ${member.role} in the ${member.department} department.`;
+        responseContent += `\n\nI've added ${member.name} to the team as ${(member as any).role} in the ${(member as any).department} department.`;
       } else if (action === 'updated' && 'name' in member) {
         responseContent += `\n\nI've updated ${member.name}'s information.`;
       } else if (action === 'deleted') {
@@ -898,7 +898,7 @@ Use the appropriate tools to help manage the business effectively.`;
       const action = positionResult.action;
       const position = positionResult.data;
       if (action === 'created' && 'title' in position) {
-        responseContent += `\n\nI've created a new ${position.title} position in the ${position.department} department.`;
+        responseContent += `\n\nI've created a new ${position.title} position in the ${(position as any).department} department.`;
       } else if (action === 'updated' && 'title' in position) {
         responseContent += `\n\nI've updated the ${position.title} position.`;
       } else if (action === 'deleted') {

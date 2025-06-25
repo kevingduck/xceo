@@ -1,4 +1,4 @@
-import { Express, Request, Response } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { db } from '@db';
 import { tasks, users, teamMembers } from '@db/schema';
@@ -30,7 +30,7 @@ export function registerValidatedRoutes(app: Express) {
       
       // Check if user already exists
       const existingUser = await db.query.users.findFirst({
-        where: eq(users.email, email)
+        where: eq(users.username, email)
       });
       
       if (existingUser) {
@@ -84,12 +84,12 @@ export function registerValidatedRoutes(app: Express) {
       const { status, priority } = req.query;
       
       // Build query with validated parameters
-      const offset = (page - 1) * limit;
+      const offset = (Number(page) - 1) * Number(limit);
       
       // Query logic here with proper pagination and filtering...
       const userTasks = await db.query.tasks.findMany({
         where: eq(tasks.userId, req.user.id),
-        limit: limit,
+        limit: Number(limit),
         offset: offset
       });
       
@@ -137,7 +137,7 @@ export function registerValidatedRoutes(app: Express) {
         throw new AppError(401, 'AUTHENTICATION_ERROR', 'Not authenticated');
       }
 
-      const taskId = req.params.id; // Already validated as number
+      const taskId = parseInt(req.params.id); // Already validated as number
       
       // Check if task exists and belongs to user
       const [existingTask] = await db
@@ -325,7 +325,7 @@ export const customValidations = {
         where: eq(users.businessName, businessName)
       });
       
-      if (existing && existing.id !== req.user?.id) {
+      if (existing && existing.id !== (req as any).user?.id) {
         throw new AppError(409, 'BUSINESS_NAME_TAKEN', 'Business name is already taken');
       }
     }
@@ -347,12 +347,12 @@ export const customValidations = {
       throw new AppError(404, 'NOT_FOUND', 'Task not found');
     }
 
-    if (task.userId !== req.user?.id) {
+    if (task.userId !== (req as any).user?.id) {
       throw new AppError(403, 'FORBIDDEN', 'Not authorized to access this task');
     }
 
     // Attach task to request for use in route handler
-    req.task = task;
+    (req as any).task = task;
     next();
   }),
 
